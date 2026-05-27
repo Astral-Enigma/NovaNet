@@ -1,0 +1,23 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <title>Characters</title>
+</head>
+<body>
+  <h1>Characters</h1>
+
+  <form method="post" action="/character">
+    <label>Name: <input type="text" name="name" required /></label><br />
+    <label>Age: <input type="number" name="age" required /></label><br />
+    <label>Health: <input type="number" name="health" required /></label><br />
+    <button type="submit">Add Character</button>
+  </form>
+
+  <h2>Character List</h2>
+  <table border="1" cellpadding="4">
+    <tr><th>Name</th><th>Age</th><th>Health</th><th>Edit</th></tr>
+    {{ rows }}
+  </table>
+</body>
+</html>

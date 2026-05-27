@@ -1,0 +1,49 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <title>Hello World</title>
+  <style>
+    body {
+      font-family: sans-serif;
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      justify-content: center;
+      height: 100vh;
+      margin: 0;
+      background: #f0f4f8;
+    }
+    h1 { color: #333; }
+    button {
+      padding: 0.6rem 1.4rem;
+      font-size: 1rem;
+      border: none;
+      border-radius: 6px;
+      background: #4f80ff;
+      color: white;
+      cursor: pointer;
+      transition: background 0.2s;
+    }
+    button:hover { background: #2f5fdf; }
+    #message {
+      margin-top: 1rem;
+      font-size: 1.1rem;
+      color: #555;
+    }
+  </style>
+</head>
+<body>
+  <h1>Hello, World!</h1>
+  <button onclick="greet()">Click me</button>
+  <p id="message"></p>
+
+  <script>
+    async function greet() {
+      const res = await fetch("/greet");
+      const data = await res.json();
+      document.getElementById("message").textContent = data.message;
+    }
+  </script>
+</body>
+</html>
