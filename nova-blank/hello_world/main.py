@@ -3,7 +3,8 @@
 #   sudo apt update && sudo apt install -y python3-pip
 #   pip3 install fastapi uvicorn python-multipart
 # Run:
-#   uv run --with fastapi --with uvicorn --with python-multipart python3 main.py
+#   run .venv/bin/activate
+#   uv run --with fastapi --with uvicorn --with python-multipart python3 nova-blank/hello_world/main.py
 
 from pathlib import Path
 

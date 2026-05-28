@@ -1,3 +1,5 @@
-name,age,health
-Jarrett,30,1000
-Aster,29,4323432
+name,age,health,rank
+Jarrett,29,1000,novice
+Aster,29,4323432, novice
+s,2,2,d
+Jet,3,3,f
