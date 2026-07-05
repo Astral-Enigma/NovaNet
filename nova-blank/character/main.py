@@ -22,7 +22,7 @@ app = FastAPI()
 CSV_FILE = Path(__file__).parent / "characters.csv"
 HTML_FILE = Path(__file__).parent / "index.html"
 EDIT_FILE = Path(__file__).parent / "edit.html"
-FIELDS = ["name", "age", "health", "rank"]
+FIELDS = ["name", "age", "trauma", "deftness", "handling", "tenacity", "wit", "perception", "composure", "rank",]
 
 if not CSV_FILE.exists():
     with open(CSV_FILE, "w", newline="") as f:

@@ -10,14 +10,20 @@
   <form method="post" action="/character">
     <label>Name: <input type="text" name="name" required /></label><br />
     <label>Age: <input type="number" name="age" required /></label><br />
-    <label>Health: <input type="number" name="health" required /></label><br />
+    <label>Trauma: <input type="number" name="trauma" required /></label><br />
+    <label>Deftness: <input type="number" name="deftness" required /></label><br />
+    <label>Handling: <input type="number" name="handling" required /></label><br />
+    <label>Tenacity: <input type="number" name="tenacity" required /></label><br />
+    <label>Wit: <input type="number" name="wit" required /></label><br />
+    <label>Perception: <input type="number" name="perception" required /></label><br />
+    <label>Composure: <input type="number" name="composure" required /></label><br />
     <label>Rank: <input type="text" name="rank" required /></label><br />
     <button type="submit">Add Character</button>
   </form>
 
   <h2>Character List</h2>
   <table border="1" cellpadding="4">
-    <tr><th>Name</th><th>Age</th><th>Health</th><th>Rank</th><th>Edit</th></tr>
+    <tr><th>Name</th><th>Age</th><th>Trauma</th><th>Deftness</th><th>Handling</th><th>Tenacity</th><th>Wit</th><th>Perception</th><th>Composure</th><th>Rank</th><th>Edit</th></tr>
     {{ rows }}
   </table>
 </body>
