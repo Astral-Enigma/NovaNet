@@ -22,7 +22,7 @@ app = FastAPI()
 CSV_FILE = Path(__file__).parent / "characters.csv"
 HTML_FILE = Path(__file__).parent / "index.html"
 EDIT_FILE = Path(__file__).parent / "edit.html"
-FIELDS = ["name", "age", "trauma", "deftness", "handling", "tenacity", "wit", "perception", "composure", "rank",]
+FIELDS = ["name", "age", "rank", "clan", "house", "trait", "trauma", "pneuma", "deftness", "handling", "tenacity", "wit", "perception", "composure",]
 
 if not CSV_FILE.exists():
     with open(CSV_FILE, "w", newline="") as f:
@@ -74,8 +74,12 @@ async def edit_character(index: int, request: Request):
 @app.post("/character")
 async def create_character(request: Request):
     form = await request.form()
-    with open(CSV_FILE, "a", newline="") as f:
-        csv.DictWriter(f, fieldnames=FIELDS).writerow({f: form[f] for f in FIELDS})
+    characters = read_characters()
+    characters.append({f: form[f] for f in FIELDS})
+    with open(CSV_FILE, "w", newline="") as f:
+        writer = csv.DictWriter(f, fieldnames=FIELDS)
+        writer.writeheader()
+        writer.writerows(characters)
     return RedirectResponse(url="/", status_code=303)
 
 
