@@ -1,6 +1,6 @@
 name,age,rank,clan,house,trait,trauma,pneuma,deftness,handling,tenacity,wit,perception,composure
-Jarrett,29,Master,0,0,0,200,0,0,0,0,0,0,0
+Jarrett,29,Master,Varna,0,0,200,0,0,0,0,0,0,0
 Aster,29, novice,0,0,0,4323432,0,0,0,0,0,0,0
-s,2,d,0,0,0,2,0,0,0,0,0,0,0
 Jet,39,Master,0,0,0,99999,0,0,0,0,0,0,0
 Cymon,26,Master,Varna,Serpent,Null,999,999,50,50,50,50,50,50
+Test,0,0,0,0,0,0,0,0,0,0,0,0,0

@@ -6,10 +6,6 @@
 # Run:
 #   uv run --with fastapi --with uvicorn --with python-multipart python3 main.py
 
-'''
-To Do:
-    character deletion
-'''
 import csv
 from pathlib import Path
 
@@ -44,7 +40,10 @@ def index():
     characters = read_characters()
     rows = "".join(
         "<tr>" + "".join(f"<td>{c[f]}</td>" for f in FIELDS) +
-        f"<td><a href='/character/{i}/edit'>Edit</a></td></tr>"
+        f"<td><a href='/character/{i}/edit'>Edit</a></td>"
+        f"<td><form method='post' action='/character/{i}/delete' style='display:inline' "
+        f"onsubmit=\"return confirm('Delete {c['name']}?')\">"
+        f"<button type='submit'>Delete</button></form></td></tr>"
         for i, c in enumerate(characters)
     )
     return HTML_FILE.read_text().replace("{{ rows }}", rows)
@@ -64,6 +63,17 @@ async def edit_character(index: int, request: Request):
     form = await request.form()
     characters = read_characters()
     characters[index] = {f: form[f] for f in FIELDS}
+    with open(CSV_FILE, "w", newline="") as f:
+        writer = csv.DictWriter(f, fieldnames=FIELDS)
+        writer.writeheader()
+        writer.writerows(characters)
+    return RedirectResponse(url="/", status_code=303)
+
+
+@app.post("/character/{index}/delete")
+async def delete_character(index: int):
+    characters = read_characters()
+    del characters[index]
     with open(CSV_FILE, "w", newline="") as f:
         writer = csv.DictWriter(f, fieldnames=FIELDS)
         writer.writeheader()
