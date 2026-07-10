@@ -7,6 +7,7 @@
 #   uv run --with fastapi --with uvicorn --with python-multipart python3 main.py
 
 import csv
+import math
 from pathlib import Path
 
 import uvicorn
@@ -18,7 +19,7 @@ app = FastAPI()
 CSV_FILE = Path(__file__).parent / "characters.csv"
 HTML_FILE = Path(__file__).parent / "index.html"
 EDIT_FILE = Path(__file__).parent / "edit.html"
-FIELDS = ["name", "age", "rank", "clan", "house", "trait", "trauma", "pneuma", "deftness", "handling", "tenacity", "wit", "perception", "composure",]
+FIELDS = ["name", "age", "rank", "clan", "house", "trait", "trauma", "pneuma", "deftness", "handling", "tenacity", "wit", "perception", "composure", "pluck", "potential",]
 
 if not CSV_FILE.exists():
     with open(CSV_FILE, "w", newline="") as f:
@@ -33,6 +34,19 @@ def read_characters():
             if f not in row:
                 row[f] = "0"
     return rows
+
+
+def compute_derived_fields(character):
+    stat_fields = ["deftness", "handling", "tenacity", "wit", "perception", "composure"]
+    try:
+        total = sum(int(character[f]) for f in stat_fields)
+        pluck = math.ceil(total / 2)
+        potential = math.ceil(pluck / 2)
+    except (KeyError, ValueError, TypeError):
+        pluck = potential = 0
+    character["pluck"] = str(pluck)
+    character["potential"] = str(potential)
+    return character
 
 
 @app.get("/", response_class=HTMLResponse)
@@ -62,7 +76,7 @@ def edit_character_form(index: int):
 async def edit_character(index: int, request: Request):
     form = await request.form()
     characters = read_characters()
-    characters[index] = {f: form[f] for f in FIELDS}
+    characters[index] = compute_derived_fields({f: form[f] for f in FIELDS})
     with open(CSV_FILE, "w", newline="") as f:
         writer = csv.DictWriter(f, fieldnames=FIELDS)
         writer.writeheader()
@@ -85,7 +99,7 @@ async def delete_character(index: int):
 async def create_character(request: Request):
     form = await request.form()
     characters = read_characters()
-    characters.append({f: form[f] for f in FIELDS})
+    characters.append(compute_derived_fields({f: form[f] for f in FIELDS}))
     with open(CSV_FILE, "w", newline="") as f:
         writer = csv.DictWriter(f, fieldnames=FIELDS)
         writer.writeheader()

@@ -22,12 +22,14 @@
     <label>Wit: <input type="number" name="wit" required /></label><br />
     <label>Perception: <input type="number" name="perception" required /></label><br />
     <label>Composure: <input type="number" name="composure" required /></label><br />
+    <label>Pluck: <input type="number" name="pluck" value="0" readonly /></label><br />
+    <label>Potential: <input type="number" name="potential" value="0" readonly /></label><br />
     <button type="submit">Add Character</button>
   </form>
 
   <h2>Character List</h2>
   <table border="1" cellpadding="4">
-    <tr><th>Name</th><th>Age</th><th>Rank</th><th>Clan</th><th>House</th><th>Trait</th><th>Trauma</th><th>Pneuma</th><th>Deftness</th><th>Handling</th><th>Tenacity</th><th>Wit</th><th>Perception</th><th>Composure</th><th>Edit</th><th>Delete</th></tr>
+    <tr><th>Name</th><th>Age</th><th>Rank</th><th>Clan</th><th>House</th><th>Trait</th><th>Trauma</th><th>Pneuma</th><th>Deftness</th><th>Handling</th><th>Tenacity</th><th>Wit</th><th>Perception</th><th>Composure</th><th>Pluck</th><th>Potential</th><th>Edit</th><th>Delete</th></tr>
     {{ rows }}
   </table>
 </body>
