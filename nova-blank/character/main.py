@@ -20,6 +20,7 @@ app = FastAPI()
 CSV_FILE = Path(__file__).parent / "characters.csv"
 DB_FILE = Path(__file__).parent / "characters.db"
 HTML_FILE = Path(__file__).parent / "index.html"
+LIST_FILE = Path(__file__).parent / "characters.html"
 EDIT_FILE = Path(__file__).parent / "edit.html"
 FIELDS = ["name", "age", "rank", "clan", "house", "trait", "trauma", "pneuma", "deftness", "handling", "tenacity", "wit", "perception", "composure", "pluck", "potential",]
 NUMERIC_FIELDS = ["age", "trauma", "pneuma", "deftness", "handling", "tenacity", "wit", "perception", "composure", "pluck", "potential"]
@@ -133,6 +134,11 @@ def compute_derived_fields(character):
 
 @app.get("/", response_class=HTMLResponse)
 def index():
+    return HTML_FILE.read_text()
+
+
+@app.get("/characters", response_class=HTMLResponse)
+def character_list():
     characters = read_characters()
     rows = "".join(
         "<tr>" + "".join(f"<td>{c[f]}</td>" for f in FIELDS) +
@@ -142,7 +148,7 @@ def index():
         f"<button type='submit'>Delete</button></form></td></tr>"
         for c in characters
     )
-    return HTML_FILE.read_text().replace("{{ rows }}", rows)
+    return LIST_FILE.read_text().replace("{{ rows }}", rows)
 
 
 @app.get("/character/{id}/edit", response_class=HTMLResponse)
@@ -172,7 +178,7 @@ async def edit_character(id: int, request: Request):
             raise HTTPException(status_code=404, detail="Character not found")
     finally:
         conn.close()
-    return RedirectResponse(url="/", status_code=303)
+    return RedirectResponse(url="/characters", status_code=303)
 
 
 @app.post("/character/{id}/delete")
@@ -185,7 +191,7 @@ async def delete_character(id: int):
             raise HTTPException(status_code=404, detail="Character not found")
     finally:
         conn.close()
-    return RedirectResponse(url="/", status_code=303)
+    return RedirectResponse(url="/characters", status_code=303)
 
 
 @app.post("/character")
@@ -202,7 +208,7 @@ async def create_character(request: Request):
         conn.commit()
     finally:
         conn.close()
-    return RedirectResponse(url="/", status_code=303)
+    return RedirectResponse(url="/characters", status_code=303)
 
 
 # Run the app with uvicorn when this file is executed directly.
