@@ -1,0 +1,34 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Nova: Login</title>
+  <link rel="stylesheet" href="/style.css" />
+</head>
+<body>
+  <div class="page">
+    <header class="brand-header">
+      <h1 class="brand">Login</h1>
+    </header>
+    <nav>
+      {{ nav }}
+    </nav>
+    <div class="content">
+      <form method="post" action="/login">
+        <label>Player: <select name="player_id" required>
+          {{ player_options }}
+        </select></label>
+        <button type="submit">Login</button>
+      </form>
+
+      <h2>Enroll</h2>
+      <form method="post" action="/enroll">
+        <label>Name: <input type="text" name="name" required /></label>
+        <label><input type="checkbox" name="is_hm" value="1" /> I am the Headmaster</label>
+        <button type="submit">Enroll</button>
+      </form>
+    </div>
+  </div>
+</body>
+</html>

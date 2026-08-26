@@ -1,0 +1,33 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Nova: New Enemy</title>
+  <link rel="stylesheet" href="/style.css" />
+</head>
+<body>
+  <div class="page">
+    <header class="brand-header">
+      <h1 class="brand">New Enemy</h1>
+    </header>
+    <nav>
+      {{ nav }}
+    </nav>
+    <div class="content">
+      <form method="post" action="/enemy">
+        <label>Name: <input type="text" name="name" required /></label>
+        <label>Description: <input type="text" name="description" required /></label>
+        <label>Habitat: <select name="habitat" required>{{ habitat_options }}</select></label>
+        <label>Main Skill: <select name="main_skill" required>{{ skill_options }}</select></label>
+        <label>Default Threat Level (1-6): <input type="number" name="default_threat_level" min="1" max="6" required /></label>
+        <label>Talent Name: <input type="text" name="talent_name" required /></label>
+        <label>Talent Effect: <input type="text" name="talent_effect" required /></label>
+        <label>Drops: <input type="text" name="drops" required /></label>
+        <button type="submit">Add Enemy</button>
+        <a href="/enemies" class="section-link">Cancel</a>
+      </form>
+    </div>
+  </div>
+</body>
+</html>

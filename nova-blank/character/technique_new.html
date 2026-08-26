@@ -1,0 +1,33 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Nova: New Technique</title>
+  <link rel="stylesheet" href="/style.css" />
+</head>
+<body>
+  <div class="page">
+    <header class="brand-header">
+      <h1 class="brand">New Technique for {{ character_name }}</h1>
+    </header>
+    <nav>
+      {{ nav }}
+    </nav>
+    <div class="content">
+      <form method="post" action="/character/{{ id }}/techniques">
+        <label>Name: <input type="text" name="name" required /></label>
+        <label>Description: <input type="text" name="description" required /></label>
+        <label>Toll: <input type="number" name="toll" required /></label>
+        <label>Type: <input type="text" name="type" placeholder="e.g. Physical/Handling" required /></label>
+        <label>Category: <input type="text" name="category" placeholder="Offensive/Defensive/Utility/Shaping/Spirit" required /></label>
+        <label>Effect: <input type="text" name="effect" required /></label>
+        <label>Burst: <input type="text" name="burst" /></label>
+        <label>Duration: <input type="text" name="duration" /></label>
+        <button type="submit">Add Technique</button>
+        <a href="/character/{{ id }}/techniques" class="section-link">Cancel</a>
+      </form>
+    </div>
+  </div>
+</body>
+</html>

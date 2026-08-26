@@ -1,0 +1,40 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Nova: New Character</title>
+  <link rel="stylesheet" href="/style.css" />
+</head>
+<body>
+  <div class="page">
+    <header class="brand-header">
+      <h1 class="brand">New Character</h1>
+    </header>
+    <nav>
+      {{ nav }}
+    </nav>
+    <div class="content">
+      <form method="post" action="/character">
+        <label>Name: <input type="text" name="name" required /></label>
+        <label>Age: <input type="number" name="age" required /></label>
+        <label>Rank: <input type="text" name="rank" required /></label>
+        <label>Clan: <input type="text" name="clan" required /></label>
+        <label>House: <input type="text" name="house" required /></label>
+        <label>Trait: <input type="text" name="trait" required /></label>
+        <label>Trauma: <input type="number" name="trauma" required /></label>
+        <label>Pneuma: <input type="number" name="pneuma" required /></label>
+        <label>Deftness: <input type="number" name="deftness" required /></label>
+        <label>Handling: <input type="number" name="handling" required /></label>
+        <label>Tenacity: <input type="number" name="tenacity" required /></label>
+        <label>Wit: <input type="number" name="wit" required /></label>
+        <label>Perception: <input type="number" name="perception" required /></label>
+        <label>Composure: <input type="number" name="composure" required /></label>
+        <label>Pluck: <input type="number" name="pluck" value="0" readonly /></label>
+        <label>Potential: <input type="number" name="potential" value="0" readonly /></label>
+        <button type="submit">Add Character</button>
+      </form>
+    </div>
+  </div>
+</body>
+</html>

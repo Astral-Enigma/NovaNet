@@ -2,30 +2,42 @@
 <html lang="en">
 <head>
   <meta charset="UTF-8" />
-  <title>Edit Character</title>
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Nova: Edit Character</title>
+  <link rel="stylesheet" href="/style.css" />
 </head>
 <body>
-  <h1>Edit Character</h1>
-
-  <form method="post" action="/character/{{ id }}/edit">
-    <label>Name: <input type="text" name="name" value="{{ name }}" required /></label><br />
-    <label>Age: <input type="number" name="age" value="{{ age }}" required /></label><br />
-    <label>Rank: <input type="text" name="rank" value="{{ rank }}" required /></label><br />
-    <label>Clan: <input type="text" name="clan" value="{{ clan }}" required /></label><br />
-    <label>House: <input type="text" name="house" value="{{ house }}" required /></label><br />
-    <label>Trait: <input type="text" name="trait" value="{{ trait }}" required /></label><br />
-    <label>Trauma: <input type="number" name="trauma" value="{{ trauma }}" required /></label><br />
-    <label>Pneuma: <input type="number" name="pneuma" value="{{ pneuma }}" required /></label><br />
-    <label>Deftness: <input type="number" name="deftness" value="{{ deftness }}" required /></label><br />
-    <label>Handling: <input type="number" name="handling" value="{{ handling }}" required /></label><br />
-    <label>Tenacity: <input type="number" name="tenacity" value="{{ tenacity }}" required /></label><br />
-    <label>Wit: <input type="number" name="wit" value="{{ wit }}" required /></label><br />
-    <label>Perception: <input type="number" name="perception" value="{{ perception }}" required /></label><br />
-    <label>Composure: <input type="number" name="composure" value="{{ composure }}" required /></label><br />
-    <label>Pluck: <input type="number" name="pluck" value="{{ pluck }}" readonly /></label><br />
-    <label>Potential: <input type="number" name="potential" value="{{ potential }}" readonly /></label><br />
-    <button type="submit">Save</button>
-    <a href="/characters">Cancel</a>
-  </form>
+  <div class="page">
+    <header class="brand-header">
+      <h1 class="brand">Edit Character</h1>
+    </header>
+    <nav>
+      {{ nav }}
+    </nav>
+    <div class="content">
+      <form method="post" action="/character/{{ id }}/edit">
+        {{ player_field }}
+        <label>Name: <input type="text" name="name" value="{{ name }}" required /></label>
+        <label>Age: <input type="number" name="age" value="{{ age }}" required /></label>
+        <label>Rank: <input type="text" name="rank" value="{{ rank }}" required /></label>
+        <label>Clan: <input type="text" name="clan" value="{{ clan }}" required /></label>
+        <label>House: <input type="text" name="house" value="{{ house }}" required /></label>
+        <label>Trait: <input type="text" name="trait" value="{{ trait }}" required /></label>
+        <label>Trauma: <input type="number" name="trauma" value="{{ trauma }}" required /></label>
+        <label>Pneuma: <input type="number" name="pneuma" value="{{ pneuma }}" required /></label>
+        <label>Deftness: <input type="number" name="deftness" value="{{ deftness }}" required /></label>
+        <label>Handling: <input type="number" name="handling" value="{{ handling }}" required /></label>
+        <label>Tenacity: <input type="number" name="tenacity" value="{{ tenacity }}" required /></label>
+        <label>Wit: <input type="number" name="wit" value="{{ wit }}" required /></label>
+        <label>Perception: <input type="number" name="perception" value="{{ perception }}" required /></label>
+        <label>Composure: <input type="number" name="composure" value="{{ composure }}" required /></label>
+        <label>Pluck: <input type="number" name="pluck" value="{{ pluck }}" readonly /></label>
+        <label>Potential: <input type="number" name="potential" value="{{ potential }}" readonly /></label>
+        <button type="submit">Save</button>
+        <a href="/character/{{ id }}/techniques" class="section-link">Techniques</a>
+        <a href="/characters" class="section-link">Cancel</a>
+      </form>
+    </div>
+  </div>
 </body>
 </html>
