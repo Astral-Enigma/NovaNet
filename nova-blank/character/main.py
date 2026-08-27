@@ -8,6 +8,7 @@
 
 import csv
 import math
+import os
 import random
 import secrets
 import sqlite3
@@ -18,8 +19,27 @@ from fastapi import FastAPI, HTTPException, Request
 from fastapi.responses import HTMLResponse, RedirectResponse, Response
 from starlette.middleware.sessions import SessionMiddleware
 
+SECRET_KEY_FILE = Path(__file__).parent / "session_secret.txt"
+
+
+def load_session_secret():
+    # A freshly generated secret on every start would log every user out on restart, so
+    # prefer the environment and fall back to a secret persisted next to the database.
+    from_env = os.environ.get("NOVANET_SECRET_KEY")
+    if from_env:
+        return from_env
+    if SECRET_KEY_FILE.exists():
+        stored = SECRET_KEY_FILE.read_text().strip()
+        if stored:
+            return stored
+    generated = secrets.token_hex(32)
+    SECRET_KEY_FILE.write_text(generated)
+    SECRET_KEY_FILE.chmod(0o600)
+    return generated
+
+
 app = FastAPI()
-app.add_middleware(SessionMiddleware, secret_key=secrets.token_hex(32))
+app.add_middleware(SessionMiddleware, secret_key=load_session_secret())
 
 CSV_FILE = Path(__file__).parent / "characters.csv"
 DB_FILE = Path(__file__).parent / "characters.db"
@@ -337,12 +357,15 @@ def roll_and_keep(roll_count, keep_count, sides=6):
 
 
 def generate_creature_stats(creature, threat_level):
+    # Creature Catalog: the main skill is (threat level)d6 + threat level. Every other
+    # skill starts at a flat 1 at Novice, then gains 1d6 + 1 per rank above Novice.
+    ranks_above_novice = threat_level - 1
     stats = {}
     for skill in SKILLS:
         if skill == creature["main_skill"]:
             stats[skill] = sum(roll_dice(threat_level, 6)) + threat_level
         else:
-            stats[skill] = sum(roll_dice(threat_level, 6)) + (threat_level - 1)
+            stats[skill] = 1 + sum(roll_dice(ranks_above_novice, 6)) + ranks_above_novice
     talent_uses = sum(roll_dice(2, 6)) * threat_level
     talent_cooldown = math.ceil(threat_level / 2)
     return stats, talent_uses, talent_cooldown

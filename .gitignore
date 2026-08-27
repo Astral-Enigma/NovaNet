@@ -3,3 +3,4 @@ venv/
 env/
 __pycache__/
 nova-blank/character/characters.db
+nova-blank/character/session_secret.txt
