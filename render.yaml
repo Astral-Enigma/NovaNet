@@ -10,3 +10,18 @@ services:
       # every deploy and log everyone out. generateValue creates this once and keeps it.
       - key: NOVANET_SECRET_KEY
         generateValue: true
+
+    # WARNING: on the free plan the filesystem is wiped on every deploy, so characters.db
+    # and every character in it are lost each time you ship. Persistent disks require a
+    # paid instance type. To keep data across deploys, change `plan` above to a paid tier
+    # and uncomment both blocks below - the app reads NOVANET_DATA_DIR and will store the
+    # database and session secret there.
+    #
+    #   envVars:
+    #     - key: NOVANET_DATA_DIR
+    #       value: /var/novanet
+    #
+    # disk:
+    #   name: novanet-data
+    #   mountPath: /var/novanet
+    #   sizeGB: 1

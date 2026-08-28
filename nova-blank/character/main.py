@@ -19,7 +19,13 @@ from fastapi import FastAPI, HTTPException, Request
 from fastapi.responses import HTMLResponse, RedirectResponse, Response
 from starlette.middleware.sessions import SessionMiddleware
 
-SECRET_KEY_FILE = Path(__file__).parent / "session_secret.txt"
+# Hosts like Render give each deploy a fresh, empty filesystem, so anything written next to
+# this file is wiped every time the app ships. NOVANET_DATA_DIR points the database and the
+# session secret at a persistent disk instead; it defaults to alongside the code so local
+# development is unchanged.
+DATA_DIR = Path(os.environ.get("NOVANET_DATA_DIR", Path(__file__).parent))
+DATA_DIR.mkdir(parents=True, exist_ok=True)
+SECRET_KEY_FILE = DATA_DIR / "session_secret.txt"
 
 
 def load_session_secret():
@@ -42,7 +48,7 @@ app = FastAPI()
 app.add_middleware(SessionMiddleware, secret_key=load_session_secret())
 
 CSV_FILE = Path(__file__).parent / "characters.csv"
-DB_FILE = Path(__file__).parent / "characters.db"
+DB_FILE = DATA_DIR / "characters.db"
 HOME_FILE = Path(__file__).parent / "home.html"
 CHARACTER_NEW_FILE = Path(__file__).parent / "character_new.html"
 LIST_FILE = Path(__file__).parent / "characters.html"
@@ -65,6 +71,10 @@ TECHNIQUE_FIELDS = ["name", "description", "toll", "type", "category", "effect",
 CREATURE_FIELDS = ["name", "description", "habitat", "main_skill", "default_threat_level", "talent_name", "talent_effect", "drops"]
 SKILLS = ["Deftness", "Handling", "Tenacity", "Wit", "Perception", "Composure"]
 HABITATS = ["Land Dwelling", "Sky-Faring", "Sea-Faring", "Celestial", "Damned"]
+# Master rank rolls 6d6; techniques, weapons, and Flash Dice stack on top of that, so this
+# cap is far above any legitimate Nova roll while keeping an unbounded pool from exhausting
+# memory and taking the whole server down.
+MAX_DICE = 100
 RANK_DICE = {
     "Novice": (1, 1),
     "Rookie": (2, 1),
@@ -946,7 +956,7 @@ async def roll_dice_route(request: Request):
             keep_count = int(form.get("keep_count", 1))
         except (TypeError, ValueError):
             roll_count, keep_count = 1, 1
-    roll_count = max(1, roll_count)
+    roll_count = max(1, min(roll_count, MAX_DICE))
     keep_count = max(1, min(keep_count, roll_count))
     all_rolls, kept_sum = roll_and_keep(roll_count, keep_count)
     sorted_rolls = sorted(all_rolls, reverse=True)
