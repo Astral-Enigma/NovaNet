@@ -113,6 +113,100 @@ class TestRooms:
         assert response.status_code == 403
 
 
+class TestClosingRooms:
+    def _joined_room(self, client, name="Ryn"):
+        cid = make_character(client, name)
+        client.post("/play/rooms", data={"name": "The Pit", "description": ""},
+                    follow_redirects=False)
+        client.post("/play/room/1/join", data={"character_id": str(cid)}, follow_redirects=False)
+        return 1
+
+    def test_opener_can_close(self, player):
+        room = self._joined_room(player)
+        assert player.post(f"/play/room/{room}/close", follow_redirects=False).status_code == 303
+        body = player.get(f"/play/room/{room}").text
+        assert "closed the room" in body
+        assert "This room was closed" in body
+
+    def test_closing_blocks_new_activity(self, player):
+        room = self._joined_room(player)
+        player.post(f"/play/room/{room}/close", follow_redirects=False)
+        assert player.post(f"/play/room/{room}/message", data={"body": "hi"},
+                           follow_redirects=False).status_code == 403
+        assert player.post(f"/play/room/{room}/roll", data={"mode": "rank"},
+                           follow_redirects=False).status_code == 403
+
+    def test_closing_blocks_new_joins(self, client):
+        client.post("/enroll", data={"name": "Owner"}, follow_redirects=False)
+        self._joined_room(client)
+        client.post("/play/room/1/close", follow_redirects=False)
+        client.post("/logout", follow_redirects=False)
+        client.post("/enroll", data={"name": "Latecomer"}, follow_redirects=False)
+        cid = make_character(client, "Odo")
+        response = client.post("/play/room/1/join", data={"character_id": str(cid)},
+                               follow_redirects=False)
+        assert response.status_code == 403
+
+    def test_log_survives_closing(self, player):
+        room = self._joined_room(player)
+        player.post(f"/play/room/{room}/message", data={"body": "a line of play"},
+                    follow_redirects=False)
+        player.post(f"/play/room/{room}/close", follow_redirects=False)
+        assert "a line of play" in player.get(f"/play/room/{room}/messages").text
+
+    def test_members_can_still_leave_a_closed_room(self, player):
+        room = self._joined_room(player)
+        player.post(f"/play/room/{room}/close", follow_redirects=False)
+        assert player.post(f"/play/room/{room}/leave", follow_redirects=False).status_code == 303
+
+    def test_non_opener_cannot_close(self, client):
+        client.post("/enroll", data={"name": "Owner"}, follow_redirects=False)
+        self._joined_room(client)
+        client.post("/logout", follow_redirects=False)
+        client.post("/enroll", data={"name": "Bystander"}, follow_redirects=False)
+        assert client.post("/play/room/1/close", follow_redirects=False).status_code == 403
+
+    def test_hm_can_close_someone_elses_room(self, client):
+        client.post("/enroll", data={"name": "Owner"}, follow_redirects=False)
+        self._joined_room(client)
+        client.post("/logout", follow_redirects=False)
+        client.post("/enroll", data={"name": "Head", "is_hm": "1"}, follow_redirects=False)
+        assert client.post("/play/room/1/close", follow_redirects=False).status_code == 303
+
+    def test_reopen_restores_activity(self, player):
+        room = self._joined_room(player)
+        player.post(f"/play/room/{room}/close", follow_redirects=False)
+        assert player.post(f"/play/room/{room}/reopen", follow_redirects=False).status_code == 303
+        assert player.post(f"/play/room/{room}/message", data={"body": "back on"},
+                           follow_redirects=False).status_code == 303
+        assert "back on" in player.get(f"/play/room/{room}/messages").text
+
+    def test_closing_twice_is_harmless(self, player):
+        room = self._joined_room(player)
+        player.post(f"/play/room/{room}/close", follow_redirects=False)
+        player.post(f"/play/room/{room}/close", follow_redirects=False)
+        assert player.get(f"/play/room/{room}/messages").text.count("closed the room") == 1
+
+    def test_status_shows_on_the_play_listing(self, player):
+        room = self._joined_room(player)
+        assert "Open" in player.get("/play").text
+        player.post(f"/play/room/{room}/close", follow_redirects=False)
+        assert "Closed" in player.get("/play").text
+
+    def test_logged_out_close_goes_to_login(self, client):
+        client.post("/enroll", data={"name": "Owner"}, follow_redirects=False)
+        self._joined_room(client)
+        client.post("/logout", follow_redirects=False)
+        response = client.post("/play/room/1/close", follow_redirects=False)
+        assert response.status_code == 303
+        assert response.headers["location"] == "/login"
+
+    def test_closing_a_missing_room_is_a_styled_404(self, player):
+        response = player.post("/play/room/999/close", follow_redirects=False)
+        assert response.status_code == 404
+        assert response.headers["content-type"].startswith("text/html")
+
+
 class TestCsvSeed:
     def test_export_includes_owning_player(self, player, app_module):
         make_character(player, "Ryn", rank="Genius")

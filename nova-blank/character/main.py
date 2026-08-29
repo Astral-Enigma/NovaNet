@@ -172,7 +172,8 @@ def init_db():
                 name TEXT NOT NULL,
                 description TEXT NOT NULL DEFAULT '',
                 created_by INTEGER NOT NULL REFERENCES players(id),
-                created_at TEXT NOT NULL
+                created_at TEXT NOT NULL,
+                closed_at TEXT
             )
             """
         )
@@ -202,6 +203,7 @@ def init_db():
         conn.commit()
         migrate_player_id_if_needed(conn)
         migrate_is_hm_if_needed(conn)
+        migrate_room_closed_at_if_needed(conn)
     finally:
         conn.close()
 
@@ -221,6 +223,14 @@ def migrate_is_hm_if_needed(conn):
     if "is_hm" in columns:
         return
     conn.execute("ALTER TABLE players ADD COLUMN is_hm INTEGER NOT NULL DEFAULT 0")
+    conn.commit()
+
+
+def migrate_room_closed_at_if_needed(conn):
+    columns = [row["name"] for row in conn.execute("PRAGMA table_info(rooms)")]
+    if "closed_at" in columns:
+        return
+    conn.execute("ALTER TABLE rooms ADD COLUMN closed_at TEXT")
     conn.commit()
 
 
@@ -1294,15 +1304,18 @@ def play_index(request: Request):
     current_player = get_current_player(request)
     rooms = read_rooms()
     if rooms:
+        # Open rooms first; closed ones stay listed so their logs remain reachable.
+        rooms.sort(key=lambda r: (bool(r["closed_at"]), -r["id"]))
         rows = "".join(
             f"<tr><td><a href='/play/room/{r['id']}'>{esc(r['name'])}</a></td>"
             f"<td>{esc(r['description'])}</td><td>{esc(r['creator_name'])}</td>"
-            f"<td>{r['member_count']}</td><td>{esc(format_stamp(r['created_at']))}</td></tr>"
+            f"<td>{r['member_count']}</td><td>{esc(format_stamp(r['created_at']))}</td>"
+            f"<td>{'Closed' if r['closed_at'] else 'Open'}</td></tr>"
             for r in rooms
         )
         table = (
             "<table><tr><th>Room</th><th>About</th><th>Opened by</th>"
-            f"<th>Characters</th><th>Opened</th></tr>{rows}</table>"
+            f"<th>Characters</th><th>Opened</th><th>Status</th></tr>{rows}</table>"
         )
     else:
         table = "<p class='quotes'>No rooms are open. Start one below.</p>"
@@ -1360,8 +1373,34 @@ def room_view(id: int, request: Request):
         for m in members
     ) or "<tr><td colspan='4'>Nobody has joined yet.</td></tr>"
 
+    is_closed = bool(room["closed_at"])
+    if can_close_room(room, current_player):
+        if is_closed:
+            manage = (
+                f"<form method='post' action='/play/room/{id}/reopen'>"
+                "<button type='submit'>Reopen room</button></form>"
+            )
+        else:
+            manage = (
+                f"<form method='post' action='/play/room/{id}/close' "
+                "onsubmit=\"return confirm('Close this room? The log is kept and it can be reopened.')\">"
+                "<button type='submit'>Close room</button></form>"
+            )
+    else:
+        manage = ""
+
     mine = character_in_room(id, current_player["id"]) if current_player else None
-    if mine:
+    if is_closed:
+        note = f"<p class='quotes'>This room was closed {esc(format_stamp(room['closed_at']))}. "
+        note += "The log is kept, but nothing new can be posted.</p>"
+        if mine:
+            note += (
+                f"<form method='post' action='/play/room/{id}/leave' "
+                "onsubmit=\"return confirm('Leave this room?')\">"
+                "<button type='submit'>Leave room</button></form>"
+            )
+        controls = note + manage
+    elif mine:
         roll_count, keep_count = RANK_DICE.get(str(mine["rank"]).strip().title(), (1, 1))
         controls = (
             f"<p>You are in this room as <strong>{esc(mine['name'])}</strong> "
@@ -1400,6 +1439,8 @@ def room_view(id: int, request: Request):
             )
     else:
         controls = "<p class='quotes'><a href='/login' class='section-link'>Log in to join this room.</a></p>"
+    if not is_closed:
+        controls += manage
 
     return (
         ROOM_FILE.read_text()
@@ -1421,11 +1462,13 @@ def room_messages_fragment(id: int):
     return render_room_messages(read_room_messages(id))
 
 
-def require_room_membership(id, request):
+def require_room_membership(id, request, allow_closed=False):
     """Return (room, character) for a caller allowed to act in this room."""
     room = read_room(id)
     if room is None:
         raise HTTPException(status_code=404, detail="Room not found")
+    if room["closed_at"] and not allow_closed:
+        raise HTTPException(status_code=403, detail="This room is closed.")
     current_player = get_current_player(request)
     if current_player is None:
         return None, None
@@ -1435,10 +1478,62 @@ def require_room_membership(id, request):
     return room, character
 
 
+def can_close_room(room, current_player):
+    """Only whoever opened the room, or an HM, may close or reopen it."""
+    if current_player is None:
+        return False
+    return room["created_by"] == current_player["id"] or bool(current_player["is_hm"])
+
+
+@app.post("/play/room/{id}/close")
+async def close_room(id: int, request: Request):
+    room = read_room(id)
+    if room is None:
+        raise HTTPException(status_code=404, detail="Room not found")
+    current_player = get_current_player(request)
+    if current_player is None:
+        return RedirectResponse(url="/login", status_code=303)
+    if not can_close_room(room, current_player):
+        raise HTTPException(status_code=403, detail="Only whoever opened this room can close it.")
+    if not room["closed_at"]:
+        conn = get_connection()
+        try:
+            conn.execute("UPDATE rooms SET closed_at = ? WHERE id = ?", (utc_now(), id))
+            conn.commit()
+        finally:
+            conn.close()
+        post_room_message(id, None, "system", f"{current_player['name']} closed the room.")
+    return RedirectResponse(url=f"/play/room/{id}", status_code=303)
+
+
+@app.post("/play/room/{id}/reopen")
+async def reopen_room(id: int, request: Request):
+    room = read_room(id)
+    if room is None:
+        raise HTTPException(status_code=404, detail="Room not found")
+    current_player = get_current_player(request)
+    if current_player is None:
+        return RedirectResponse(url="/login", status_code=303)
+    if not can_close_room(room, current_player):
+        raise HTTPException(status_code=403, detail="Only whoever opened this room can reopen it.")
+    if room["closed_at"]:
+        conn = get_connection()
+        try:
+            conn.execute("UPDATE rooms SET closed_at = NULL WHERE id = ?", (id,))
+            conn.commit()
+        finally:
+            conn.close()
+        post_room_message(id, None, "system", f"{current_player['name']} reopened the room.")
+    return RedirectResponse(url=f"/play/room/{id}", status_code=303)
+
+
 @app.post("/play/room/{id}/join")
 async def join_room(id: int, request: Request):
-    if read_room(id) is None:
+    room = read_room(id)
+    if room is None:
         raise HTTPException(status_code=404, detail="Room not found")
+    if room["closed_at"]:
+        raise HTTPException(status_code=403, detail="This room is closed.")
     current_player = get_current_player(request)
     if current_player is None:
         return RedirectResponse(url="/login", status_code=303)
@@ -1467,7 +1562,8 @@ async def join_room(id: int, request: Request):
 
 @app.post("/play/room/{id}/leave")
 async def leave_room(id: int, request: Request):
-    _room, character = require_room_membership(id, request)
+    # Leaving stays available after a room closes; only new activity is blocked.
+    _room, character = require_room_membership(id, request, allow_closed=True)
     if character is None:
         return RedirectResponse(url="/login", status_code=303)
     conn = get_connection()
