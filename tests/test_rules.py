@@ -51,15 +51,10 @@ class TestDice:
             assert len(rolls) == 5
             assert kept_sum == sum(sorted(rolls, reverse=True)[:3])
 
-    def test_dice_pool_is_capped(self, client, app_module):
-        """An unbounded pool once built a list big enough to OOM the instance."""
-        response = client.post("/dice", data={"rank": "", "roll_count": "999999999", "keep_count": "5"})
-        assert response.status_code == 200
-        assert response.text.count("<span") <= app_module.MAX_DICE
-
-    def test_keep_never_exceeds_roll(self, client):
-        response = client.post("/dice", data={"rank": "", "roll_count": "3", "keep_count": "99"})
-        assert response.status_code == 200
+    def test_dice_page_is_gone(self, client):
+        """Rolling lives in Play rooms now; the standalone page was removed."""
+        assert client.get("/dice").status_code == 404
+        assert "Dice" not in client.get("/").text
 
     def test_derived_pluck_and_potential(self, app_module):
         character = dict(deftness=3, handling=2, tenacity=4, wit=2, perception=2, composure=3)

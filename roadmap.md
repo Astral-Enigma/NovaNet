@@ -38,7 +38,7 @@ rules text it needs.
 | Characters | Full CRUD, ownership checks (`require_owner_or_hm`), auto-computed Pluck/Potential. |
 | Techniques | Per-character CRUD — name, description, toll, type, category, effect, burst, duration. |
 | Creatures | HM-only catalog CRUD + formula-driven stat generation by threat level. |
-| Dice | Roll/keep roller wired to `RANK_DICE` (Novice 1d6/1d6 → Master 6d6/5d6). |
+| Dice | Roll/keep rolling lives in Play rooms, wired to `RANK_DICE` (Novice 1d6/1d6 → Master 6d6/5d6). The standalone Dice page was removed once rooms covered it. |
 | UI | Shared nav (`render_nav`), Nova-branded `style.css`, Home page. |
 
 ### Current schema
@@ -585,7 +585,16 @@ stacking, and escalation rules; Phases 4, 5, 6, and 7 all reference it.
 
 **Depends on:** Phase 0. Small, high-value, and mostly data entry — good parallel work.
 
-- **Fix `generate_creature_stats()`** (bug 1 above).
+**Partly done.** The stat formula is fixed and all 17 creatures are seeded, as
+`CATALOG_SEED` in `main.py`. They ship with the app rather than living only in SQLite,
+because the Catalog is published reference material and because anything only in the
+database is wiped by every deploy — which is exactly why enemy generation kept appearing
+to vanish. `seed_creature_catalog()` loads them when the table is empty and leaves an
+edited catalog alone. Still outstanding below: the schema extensions, the drop→item
+foreign keys, and automated combat rewards.
+
+- ~~**Fix `generate_creature_stats()`**~~ — done.
+- ~~**Seed all 17 creatures**~~ — done.
 - **Extend the `creatures` schema** — add `trait`, `rarity` (drives Catalyst drops),
   `talent_type` (passive vs. activated — many creatures have both), and support for
   **dual main skills** conditioned on environment (Harpy: Deftness/Tenacity when grounded;
@@ -622,9 +631,17 @@ The Play page exists now, ahead of the combat engine, as a place to actually pla
   roster shows who is present with their rank and Trait.
 - **Text messages** posted in character, and **dice rolls posted into the shared log** —
   by rank (drawn from `RANK_DICE`), a plain 1d20 for Possibility Rolls, or a custom
-  roll/keep. Rolls render kept dice bold and dropped dice struck through, the same as the
-  standalone roller.
+  roll/keep. Rolls render kept dice bold and dropped dice struck through.
+- **The HM runs enemies from inside the room.** Pick a creature from the Catalog and a
+  threat level, and `generate_creature_stats()` rolls a stat block onto the field; the HM
+  then rolls as that enemy on its Threat Level's dice, and its rolls are attributed to the
+  creature rather than to the player. Duplicates of one creature are numbered per room.
+  Everyone in the room sees the field; only the HM sees the controls. Running enemies
+  deliberately does not require the HM to have joined as a character.
+- **Closing** a room archives it: the log stays readable, new activity stops (see 7.0 notes
+  in the commit history), and it can be reopened.
 - The log **polls every 4 seconds** so a room stays live without anyone refreshing.
+- This replaced the standalone Dice page, which was removed as redundant.
 
 This is deliberately the manual version: the room records what happened, and the table
 adjudicates. Phase 7's combat engine below turns it into a system that resolves the rules

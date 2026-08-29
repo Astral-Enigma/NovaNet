@@ -67,7 +67,6 @@ ENEMIES_FILE = Path(__file__).parent / "enemies.html"
 ENEMY_NEW_FILE = Path(__file__).parent / "enemy_new.html"
 ENEMY_EDIT_FILE = Path(__file__).parent / "enemy_edit.html"
 ENEMY_GENERATED_FILE = Path(__file__).parent / "enemy_generated.html"
-DICE_FILE = Path(__file__).parent / "dice.html"
 PLAY_FILE = Path(__file__).parent / "play.html"
 ROOM_FILE = Path(__file__).parent / "room.html"
 ERROR_FILE = Path(__file__).parent / "error.html"
@@ -90,6 +89,8 @@ RANK_DICE = {
     "Veteran": (5, 4),
     "Master": (6, 5),
 }
+# Creature Threat Levels are ranks by another name, so 1..6 indexes straight into this.
+RANK_ORDER = list(RANK_DICE)
 
 
 def get_connection():
@@ -194,8 +195,27 @@ def init_db():
                 id INTEGER PRIMARY KEY AUTOINCREMENT,
                 room_id INTEGER NOT NULL REFERENCES rooms(id),
                 character_id INTEGER REFERENCES characters(id),
+                enemy_id INTEGER REFERENCES room_enemies(id),
                 kind TEXT NOT NULL DEFAULT 'text',
                 body TEXT NOT NULL,
+                created_at TEXT NOT NULL
+            )
+            """
+        )
+        conn.execute(
+            """
+            CREATE TABLE IF NOT EXISTS room_enemies (
+                id INTEGER PRIMARY KEY AUTOINCREMENT,
+                room_id INTEGER NOT NULL REFERENCES rooms(id),
+                creature_id INTEGER REFERENCES creatures(id),
+                name TEXT NOT NULL,
+                threat_level INTEGER NOT NULL,
+                stats TEXT NOT NULL,
+                talent_name TEXT NOT NULL DEFAULT '',
+                talent_effect TEXT NOT NULL DEFAULT '',
+                talent_uses INTEGER NOT NULL DEFAULT 0,
+                talent_cooldown INTEGER NOT NULL DEFAULT 0,
+                dismissed_at TEXT,
                 created_at TEXT NOT NULL
             )
             """
@@ -204,6 +224,7 @@ def init_db():
         migrate_player_id_if_needed(conn)
         migrate_is_hm_if_needed(conn)
         migrate_room_closed_at_if_needed(conn)
+        migrate_message_enemy_id_if_needed(conn)
     finally:
         conn.close()
 
@@ -231,6 +252,14 @@ def migrate_room_closed_at_if_needed(conn):
     if "closed_at" in columns:
         return
     conn.execute("ALTER TABLE rooms ADD COLUMN closed_at TEXT")
+    conn.commit()
+
+
+def migrate_message_enemy_id_if_needed(conn):
+    columns = [row["name"] for row in conn.execute("PRAGMA table_info(room_messages)")]
+    if "enemy_id" in columns:
+        return
+    conn.execute("ALTER TABLE room_messages ADD COLUMN enemy_id INTEGER")
     conn.commit()
 
 
@@ -291,6 +320,87 @@ def migrate_csv_if_needed():
         conn.close()
 
 
+# The Creature Catalog is published reference material rather than anything a table
+# creates, so it ships with the app. Seeding it here means enemy generation still works
+# after a deploy wipes the database, which is not true of anything only stored in SQLite.
+# Threat levels are the Catalog's own; main skills must be one of SKILLS for the stat
+# generator, so creatures the Catalog gives a conditional skill get their primary here and
+# the condition noted in the description.
+CATALOG_SEED = [
+    # Land Dwelling
+    ("Minotaur", "Lives deep underground or in dense forest, manipulating the surrounding area with Pneuma to build mazes it hunts in. Intelligence comparable to a child.",
+     "Land Dwelling", "Tenacity", 1, "Maze Master",
+     "Passively gains +x to all rolls where x is the number of opponents. Can activate to vanish into the environment, triggering a contested Deftness roll; on success opponents become Rattled and it becomes Obscured until successfully attacked.", "Broken Horn"),
+    ("Gorgon", "A person-sized serpent as old as the Clans, dwelling in deep caves and quarries. Its stone diet lets its skin take on enhanced properties of the rock it eats.",
+     "Land Dwelling", "Deftness", 2, "Terra Toxin",
+     "A two turn attack: coils around the target to Bind it, then injects a hardening venom that solidifies over 3 rounds, killing them. Resistible with strong enough Pneuma or medical supplies.", "Gorgon's Eye"),
+    ("Alkalym", "A naturally occurring defence system for caves of compressed Pneumatic energy called Void Shards. Its strength scales with the concentration of shards it guards.",
+     "Land Dwelling", "Composure", 4, "Bedrock Beam",
+     "Charges for a turn, then fires a Pneumatic beam laced with Terra Toxin that can hit multiple targets. If damage exceeds the target's Pluck they begin to solidify over 3 turns, killing them.", "Void Fragment"),
+    ("Chimera", "A grotesque amalgamation of gorgon, takdyl and siren. The siren head lures prey, the gorgon tail petrifies it, and the takdyl torso makes it fast and durable.",
+     "Land Dwelling", "Deftness", 5, "Borrowed Talents",
+     "Gains 2 Talents from either the Gorgon, Takdyl or Siren.", "Petrified Egg"),
+    # Sky-Faring
+    ("Mechanicrow", "A Forged-built hybrid species, made to hold the ecosystem of Heirloom Island together after The Blue Scream drove its avian life toward extinction.",
+     "Sky-Faring", "Perception", 1, "None", "This creature has no Talent.", "Iron Feather"),
+    ("Harpy", "A scavenger evolved by feeding on the Pneuma-soaked corpses of the Battle of Canid Grace. Shifts between beast and humanoid shape at will.",
+     "Sky-Faring", "Deftness", 3, "Organic Acceleration",
+     "Takes the shape of whatever it last consumed Pneuma from. If it attacks a player it gains access to their Trait for xd6 rounds where x is its Threat Level. Main skill becomes Tenacity when unable to fly.", "Wicked Talon"),
+    ("Takdyl", "Harpies that fed on other harpies in desperation. Reptilian and avian both, with two sets of dragon-like wings and extra mouths that ingest prey and expel toxins.",
+     "Sky-Faring", "Tenacity", 4, "Rallied Expulsion",
+     "Spends a Support action vomiting out impurities, removing x status effects and granting immunity to them for x rounds where x is its Threat Level. Anything touching the expelled fluid gains the effects instead. Main skill becomes Deftness while airborne.", "Noxious Gland"),
+    ("Wyvern", "Takdyls that fed on their own kind, roughly triple the size, with wings and eyes numbering as many as it has consumed. Can manifest mouths anywhere on its body.",
+     "Sky-Faring", "Tenacity", 5, "True Organic Acceleration",
+     "On entering combat its main skill becomes the type and value of the opponent's lowest skill, and re-targets as opponents leave. Can activate to raise that skill by xd6 where x is its Threat Level.", "Oculus Scale"),
+    # Sea-Faring
+    ("Kelpie", "The merging of a drowned soul and a drowned animal. Generally non-aggressive, capable of telepathic speech and of shaping water into a humanoid form while on land.",
+     "Sea-Faring", "Composure", 1, "Shape of Water",
+     "On taking lethal damage it shifts to a liquid state instead and gains +x to movement. Triggers x times where x is its Threat Level. Main skill becomes Deftness in water.", "Chipped Hoof"),
+    ("Siren", "A soul drowned maliciously and reincarnated in rage. Sees the Color of the Core and hunts those with ill intent by singing them to sleep.",
+     "Sea-Faring", "Wit", 3, "Song of Serenity",
+     "Sings, rolling 1d20 + Wit. Anyone whose Pluck is exceeded becomes Bound and hallucinates their heart's desire, taking xd6 Pneumatic damage at the end of their turn where x is its Threat Level. Reaching zero Pneuma this way kills the target.", "Withered Tongue"),
+    ("Kraken", "Titans cast out of the celestial realm for their destructive nature. Adapts in both personality and physicality to the waters it inhabits.",
+     "Sea-Faring", "Wit", 5, "Refractive Skin",
+     "Passively refracts elemental energy: against a Pneumatic or Trait attack, roll xd6 where x is its Threat Level and subtract that from the damage. Can activate to blend in via a contested Wit check, becoming Obscured until successfully damaged.", "Scarred Mandible"),
+    # Celestial
+    ("Phoenix", "One of the original Celestial Beasts, formed from the energy lost each time a target falls to the Pyre Trait. Killing one only scatters it into ash and a new egg.",
+     "Celestial", "Composure", 6, "Pyre Phasing",
+     "Completely immune to Pyre attacks and statuses, transmuting that damage into bonus health and damage on its next attack. Can activate to turn any Trait based attack into Pyre for 1d6 + x rounds where x is its Threat Level.", "Essence Stone"),
+    ("Magnus Dragon", "A Titan created as the Phoenix's predator to balance the Celestial ecosystem. Composed almost entirely of Null energy.",
+     "Celestial", "Tenacity", 6, "Bite of the Progenitor",
+     "Nullifies the Trait of anything it bites for x rounds where x is its Threat Level unless the target passes a contested Composure roll. Anything killed by this bite cannot be resurrected.", "Distortion Fang"),
+    # Damned
+    ("The Afflicted", "Souls that were people or wildlife before Ashecorps' influence touched them in death. Individually weak, they travel in threes and call for more.",
+     "Damned", "Tenacity", 2, "Swarm",
+     "Spends a turn calling for help; each consecutive call adds 1d6/2 Afflicted of the same or lower level to the fight.", "Void Essence"),
+    ("Fleshspinner", "The failed emergence of an attempted Haunted creation. Formless, it consumes people who resemble its fractured memories and takes on their attributes.",
+     "Damned", "Wit", 5, "Skin Shaping",
+     "A two turn attack: bites the target, siphoning xd6 Pneuma where x is its Threat Level, then gains x of the target's techniques and raises its main skill by half the target's corresponding skill.", "Rancid Flesh"),
+    ("Zeitghast", "Spirits made of the missing parts of history, cursed to wander. They drain the Pneuma of anyone nearby, usually before a fight can begin at all.",
+     "Damned", "Composure", 5, "Shadow Siphon",
+     "Passively steals xd6 Pneuma from x targets where x is its Threat Level. Can activate to steal xd6 + x maximum Pneuma from one target, disabling the passive for x rounds. Reaching zero Pneuma in this fight kills the target.", "Swath of Void"),
+    ("Kah'clth-Kahban", "A Damned Deity under Ashecorps' command, known to mortals as Ban, the Greed God. Sacrificed his own kingdom for a Dominion the size of his throne room, in which he controls gravity.",
+     "Damned", "Tenacity", 6, "Wishes on Weighted Shoulder",
+     "At the start of combat rolls xd6 where x is its Threat Level; that result is subtracted from the effectiveness of any opponent action involving major movement. Can activate to make an opponent Winded, removing the previous debuff; used on a Winded opponent it Binds them instead, and on a Bound opponent it doubles the next damage they take.", "Relief of Restriction"),
+]
+
+
+def seed_creature_catalog():
+    """Load the Catalog's creatures when none exist, leaving an edited catalog alone."""
+    conn = get_connection()
+    try:
+        if conn.execute("SELECT COUNT(*) FROM creatures").fetchone()[0] > 0:
+            return
+        conn.executemany(
+            f"INSERT INTO creatures ({', '.join(CREATURE_FIELDS)}) "
+            f"VALUES ({', '.join('?' for _ in CREATURE_FIELDS)})",
+            CATALOG_SEED,
+        )
+        conn.commit()
+    finally:
+        conn.close()
+
+
 def export_characters_csv():
     """Write every character back to the seed CSV, owning player included.
 
@@ -336,6 +446,7 @@ def to_typed_values(character):
 
 init_db()
 migrate_csv_if_needed()
+seed_creature_catalog()
 
 
 def read_characters():
@@ -524,9 +635,12 @@ def read_room_messages(room_id, limit=200):
     try:
         rows = conn.execute(
             """
-            SELECT room_messages.*, characters.name AS character_name
+            SELECT room_messages.*,
+                   characters.name AS character_name,
+                   room_enemies.name AS enemy_name
             FROM room_messages
             LEFT JOIN characters ON characters.id = room_messages.character_id
+            LEFT JOIN room_enemies ON room_enemies.id = room_messages.enemy_id
             WHERE room_messages.room_id = ?
             ORDER BY room_messages.id DESC LIMIT ?
             """,
@@ -537,14 +651,38 @@ def read_room_messages(room_id, limit=200):
         conn.close()
 
 
-def post_room_message(room_id, character_id, kind, body):
+def post_room_message(room_id, character_id, kind, body, enemy_id=None):
     conn = get_connection()
     try:
         conn.execute(
-            "INSERT INTO room_messages (room_id, character_id, kind, body, created_at) VALUES (?, ?, ?, ?, ?)",
-            (room_id, character_id, kind, body, utc_now()),
+            "INSERT INTO room_messages (room_id, character_id, enemy_id, kind, body, created_at) "
+            "VALUES (?, ?, ?, ?, ?, ?)",
+            (room_id, character_id, enemy_id, kind, body, utc_now()),
         )
         conn.commit()
+    finally:
+        conn.close()
+
+
+def read_room_enemies(room_id, include_dismissed=False):
+    clause = "" if include_dismissed else " AND dismissed_at IS NULL"
+    conn = get_connection()
+    try:
+        return [
+            dict(row)
+            for row in conn.execute(
+                f"SELECT * FROM room_enemies WHERE room_id = ?{clause} ORDER BY id", (room_id,)
+            )
+        ]
+    finally:
+        conn.close()
+
+
+def read_room_enemy(id):
+    conn = get_connection()
+    try:
+        row = conn.execute("SELECT * FROM room_enemies WHERE id = ?", (id,)).fetchone()
+        return dict(row) if row else None
     finally:
         conn.close()
 
@@ -572,7 +710,7 @@ def render_room_messages(messages):
     out = []
     for m in messages:
         stamp = esc(format_stamp(m["created_at"]))
-        who = esc(m["character_name"] or "Unknown")
+        who = esc(m["enemy_name"] or m["character_name"] or "Unknown")
         if m["kind"] == "system":
             out.append(f"<p class='log-system'><span class='log-time'>{stamp}</span> {esc(m['body'])}</p>")
         elif m["kind"] == "roll":
@@ -587,6 +725,65 @@ def render_room_messages(messages):
                 f"<strong>{who}:</strong> {esc(m['body'])}</p>"
             )
     return "".join(out)
+
+
+def render_enemy_panel(room_id, enemies, is_hm, is_closed):
+    """The enemy field. Everyone sees who is on it; only the HM gets the controls."""
+    if not enemies and not is_hm:
+        return ""
+    rows = []
+    for e in enemies:
+        try:
+            stats = json.loads(e["stats"])
+        except (TypeError, ValueError):
+            stats = {}
+        stat_text = ", ".join(f"{k} {v}" for k, v in stats.items())
+        roll_count, keep_count = RANK_DICE[RANK_ORDER[e["threat_level"] - 1]]
+        actions = ""
+        if is_hm and not is_closed:
+            actions = (
+                f"<form method='post' action='/play/room/{room_id}/enemy/{e['id']}/roll'>"
+                "<select name='mode'>"
+                f"<option value='threat'>Threat ({roll_count}d6 keep {keep_count})</option>"
+                "<option value='d20'>1d20</option></select>"
+                "<button type='submit'>Roll</button></form>"
+                f"<form method='post' action='/play/room/{room_id}/enemy/{e['id']}/dismiss' "
+                "onsubmit=\"return confirm('Remove this enemy from the field?')\">"
+                "<button type='submit'>Dismiss</button></form>"
+            )
+        talent = f"{esc(e['talent_name'])}"
+        if e["talent_uses"]:
+            talent += f" ({e['talent_uses']} uses, {e['talent_cooldown']} round cooldown)"
+        rows.append(
+            f"<tr><td>{esc(e['name'])}</td>"
+            f"<td>{esc(RANK_ORDER[e['threat_level'] - 1])} ({e['threat_level']})</td>"
+            f"<td>{esc(stat_text)}</td><td>{talent}</td><td>{actions}</td></tr>"
+        )
+    table = (
+        "<table><tr><th>Enemy</th><th>Threat</th><th>Skills</th><th>Talent</th><th></th></tr>"
+        + "".join(rows) + "</table>"
+    ) if rows else "<p class='quotes'>No enemies on the field.</p>"
+
+    spawn = ""
+    if is_hm and not is_closed:
+        creatures = read_creatures()
+        if creatures:
+            options = "".join(
+                f"<option value='{c['id']}'>{esc(c['name'])} "
+                f"({esc(RANK_ORDER[max(1, min(6, c['default_threat_level'])) - 1])})</option>"
+                for c in creatures
+            )
+            spawn = (
+                f"<form method='post' action='/play/room/{room_id}/enemy'>"
+                f"<label>Send in: <select name='creature_id' required>{options}</select></label>"
+                "<label>Threat level: <input type='number' name='threat_level' min='1' max='6' "
+                "value='' placeholder='catalog default' /></label>"
+                "<button type='submit'>Generate</button></form>"
+            )
+        else:
+            spawn = ("<p class='quotes'>The Creature Catalog is empty. "
+                     "<a href='/enemies' class='section-link'>Add a creature</a> to send one in.</p>")
+    return "<h2>Enemies</h2>" + table + spawn
 
 
 def render_dice_result(all_rolls, keep_count):
@@ -661,7 +858,6 @@ def render_nav(request):
         ("Create a Character", "/characters/new"),
         ("Characters", "/characters"),
         ("Players", "/players"),
-        ("Dice", "/dice"),
     ]
     if current_player and current_player["is_hm"]:
         links.append(("Enemies", "/enemies"))
@@ -1254,51 +1450,6 @@ async def generate_enemy(id: int, request: Request):
     )
 
 
-@app.get("/dice", response_class=HTMLResponse)
-def dice_form(request: Request):
-    rank_options = "".join(f"<option value='{r}'>{r}</option>" for r in RANK_DICE)
-    nav = render_nav(request)
-    return (
-        DICE_FILE.read_text()
-        .replace("{{ rank_options }}", rank_options)
-        .replace("{{ nav }}", nav)
-        .replace("{{ result }}", "")
-    )
-
-
-@app.post("/dice", response_class=HTMLResponse)
-async def roll_dice_route(request: Request):
-    form = await request.form()
-    rank = form.get("rank", "")
-    if rank in RANK_DICE:
-        roll_count, keep_count = RANK_DICE[rank]
-    else:
-        try:
-            roll_count = int(form.get("roll_count", 1))
-            keep_count = int(form.get("keep_count", 1))
-        except (TypeError, ValueError):
-            roll_count, keep_count = 1, 1
-    roll_count = max(1, min(roll_count, MAX_DICE))
-    keep_count = max(1, min(keep_count, roll_count))
-    all_rolls, kept_sum = roll_and_keep(roll_count, keep_count)
-    sorted_rolls = sorted(all_rolls, reverse=True)
-    kept = sorted_rolls[:keep_count]
-    dropped = sorted_rolls[keep_count:]
-    dice_html = (
-        "".join(f"<span style='font-weight:bold'>{d}</span> " for d in kept) +
-        "".join(f"<span style='color:gray;text-decoration:line-through'>{d}</span> " for d in dropped)
-    )
-    result = f"<p>Rolled: {dice_html}<br />Kept sum: {kept_sum}</p>"
-    rank_options = "".join(f"<option value='{r}'>{r}</option>" for r in RANK_DICE)
-    nav = render_nav(request)
-    return (
-        DICE_FILE.read_text()
-        .replace("{{ rank_options }}", rank_options)
-        .replace("{{ nav }}", nav)
-        .replace("{{ result }}", result)
-    )
-
-
 @app.get("/play", response_class=HTMLResponse)
 def play_index(request: Request):
     current_player = get_current_player(request)
@@ -1372,6 +1523,10 @@ def room_view(id: int, request: Request):
         f"<td>{esc(m['rank'])}</td><td>{esc(m['trait'])}</td></tr>"
         for m in members
     ) or "<tr><td colspan='4'>Nobody has joined yet.</td></tr>"
+
+    enemies = read_room_enemies(id)
+    is_hm = bool(current_player and current_player["is_hm"])
+    enemy_panel = render_enemy_panel(id, enemies, is_hm, bool(room["closed_at"]))
 
     is_closed = bool(room["closed_at"])
     if can_close_room(room, current_player):
@@ -1448,6 +1603,7 @@ def room_view(id: int, request: Request):
         .replace("{{ room_name }}", esc(room["name"]))
         .replace("{{ room_description }}", esc(room["description"]))
         .replace("{{ member_rows }}", member_rows)
+        .replace("{{ enemy_panel }}", enemy_panel)
         .replace("{{ controls }}", controls)
         .replace("{{ messages }}", render_room_messages(read_room_messages(id)))
         .replace("{{ nav }}", render_nav(request))
@@ -1483,6 +1639,124 @@ def can_close_room(room, current_player):
     if current_player is None:
         return False
     return room["created_by"] == current_player["id"] or bool(current_player["is_hm"])
+
+
+def require_room_hm(id, request):
+    """Return (room, player) for an HM acting in an open room.
+
+    Running enemies is the HM's job rather than a character's, so this deliberately does
+    not require them to have joined the room as one.
+    """
+    room = read_room(id)
+    if room is None:
+        raise HTTPException(status_code=404, detail="Room not found")
+    current_player = get_current_player(request)
+    if current_player is None:
+        return None, None
+    if not current_player["is_hm"]:
+        raise HTTPException(status_code=403, detail="Only the Headmaster can run enemies.")
+    if room["closed_at"]:
+        raise HTTPException(status_code=403, detail="This room is closed.")
+    return room, current_player
+
+
+@app.post("/play/room/{id}/enemy")
+async def spawn_room_enemy(id: int, request: Request):
+    _room, current_player = require_room_hm(id, request)
+    if current_player is None:
+        return RedirectResponse(url="/login", status_code=303)
+    form = await request.form()
+    try:
+        creature_id = int(form["creature_id"])
+    except (KeyError, TypeError, ValueError):
+        raise HTTPException(status_code=400, detail="Pick a creature to generate.")
+    creature = read_creature(creature_id)
+    if creature is None:
+        raise HTTPException(status_code=404, detail="Creature not found")
+    try:
+        threat_level = int(form.get("threat_level", creature["default_threat_level"]))
+    except (TypeError, ValueError):
+        threat_level = creature["default_threat_level"]
+    threat_level = max(1, min(6, threat_level))
+
+    stats, talent_uses, talent_cooldown = generate_creature_stats(creature, threat_level)
+    # Several of the same creature can be in play at once, so number them per room.
+    existing = [e for e in read_room_enemies(id, include_dismissed=True)
+                if e["creature_id"] == creature_id]
+    name = creature["name"] if not existing else f"{creature['name']} {len(existing) + 1}"
+
+    conn = get_connection()
+    try:
+        cursor = conn.execute(
+            "INSERT INTO room_enemies (room_id, creature_id, name, threat_level, stats, "
+            "talent_name, talent_effect, talent_uses, talent_cooldown, created_at) "
+            "VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)",
+            (id, creature_id, name, threat_level, json.dumps(stats), creature["talent_name"],
+             creature["talent_effect"], talent_uses, talent_cooldown, utc_now()),
+        )
+        conn.commit()
+        enemy_id = cursor.lastrowid
+    finally:
+        conn.close()
+
+    summary = ", ".join(f"{skill} {value}" for skill, value in stats.items())
+    post_room_message(
+        id, None, "system",
+        f"{current_player['name']} sent in {name} ({RANK_ORDER[threat_level - 1]}, "
+        f"threat {threat_level}) - {summary}.",
+    )
+    return RedirectResponse(url=f"/play/room/{id}", status_code=303)
+
+
+@app.post("/play/room/{id}/enemy/{enemy_id}/roll")
+async def roll_as_enemy(id: int, enemy_id: int, request: Request):
+    _room, current_player = require_room_hm(id, request)
+    if current_player is None:
+        return RedirectResponse(url="/login", status_code=303)
+    enemy = read_room_enemy(enemy_id)
+    if enemy is None or enemy["room_id"] != id or enemy["dismissed_at"]:
+        raise HTTPException(status_code=404, detail="Enemy not found in this room")
+    form = await request.form()
+    mode = form.get("mode", "threat")
+    if mode == "d20":
+        body = f"rolls <strong>1d20</strong>: <strong>{roll_dice(1, 20)[0]}</strong>"
+    else:
+        if mode == "threat":
+            roll_count, keep_count = RANK_DICE[RANK_ORDER[enemy["threat_level"] - 1]]
+        else:
+            try:
+                roll_count = int(form.get("roll_count", 1))
+                keep_count = int(form.get("keep_count", 1))
+            except (TypeError, ValueError):
+                roll_count, keep_count = 1, 1
+        roll_count = max(1, min(roll_count, MAX_DICE))
+        keep_count = max(1, min(keep_count, roll_count))
+        all_rolls, kept_sum = roll_and_keep(roll_count, keep_count)
+        body = (
+            f"rolls <strong>{roll_count}d6 keep {keep_count}</strong>: "
+            f"{render_dice_result(all_rolls, keep_count)}&rarr; <strong>{kept_sum}</strong>"
+        )
+    post_room_message(id, None, "roll", body, enemy_id=enemy_id)
+    return RedirectResponse(url=f"/play/room/{id}", status_code=303)
+
+
+@app.post("/play/room/{id}/enemy/{enemy_id}/dismiss")
+async def dismiss_room_enemy(id: int, enemy_id: int, request: Request):
+    _room, current_player = require_room_hm(id, request)
+    if current_player is None:
+        return RedirectResponse(url="/login", status_code=303)
+    enemy = read_room_enemy(enemy_id)
+    if enemy is None or enemy["room_id"] != id:
+        raise HTTPException(status_code=404, detail="Enemy not found in this room")
+    if not enemy["dismissed_at"]:
+        conn = get_connection()
+        try:
+            conn.execute("UPDATE room_enemies SET dismissed_at = ? WHERE id = ?", (utc_now(), enemy_id))
+            conn.commit()
+        finally:
+            conn.close()
+        post_room_message(id, None, "system", f"{enemy['name']} left the field.")
+    return RedirectResponse(url=f"/play/room/{id}", status_code=303)
 
 
 @app.post("/play/room/{id}/close")

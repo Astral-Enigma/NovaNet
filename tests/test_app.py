@@ -207,6 +207,195 @@ class TestClosingRooms:
         assert response.headers["content-type"].startswith("text/html")
 
 
+class TestCreatureCatalog:
+    """The Catalog ships with the app so enemy generation survives a wipe."""
+
+    def test_catalog_is_seeded(self, app_module):
+        conn = app_module.get_connection()
+        count = conn.execute("SELECT COUNT(*) FROM creatures").fetchone()[0]
+        names = [r["name"] for r in conn.execute("SELECT name FROM creatures")]
+        conn.close()
+        assert count == len(app_module.CATALOG_SEED) == 17
+        assert "Minotaur" in names and "Kah'clth-Kahban" in names
+
+    def test_every_seeded_main_skill_is_generatable(self, app_module):
+        """A main skill outside SKILLS would silently never get the main-skill roll."""
+        for row in app_module.CATALOG_SEED:
+            assert row[3] in app_module.SKILLS, f"{row[0]} has main skill {row[3]}"
+
+    def test_every_seeded_threat_level_is_in_range(self, app_module):
+        for row in app_module.CATALOG_SEED:
+            assert 1 <= row[4] <= 6, f"{row[0]} has threat level {row[4]}"
+
+    def test_habitats_match_the_catalog_groupings(self, app_module):
+        for row in app_module.CATALOG_SEED:
+            assert row[2] in app_module.HABITATS, f"{row[0]} has habitat {row[2]}"
+
+    def test_seeding_does_not_overwrite_an_edited_catalog(self, app_module):
+        conn = app_module.get_connection()
+        conn.execute("DELETE FROM creatures")
+        conn.execute(
+            f"INSERT INTO creatures ({', '.join(app_module.CREATURE_FIELDS)}) "
+            f"VALUES ({', '.join('?' for _ in app_module.CREATURE_FIELDS)})",
+            ("Homebrew", "d", "Damned", "Wit", 3, "t", "e", "drop"),
+        )
+        conn.commit()
+        conn.close()
+
+        app_module.seed_creature_catalog()
+
+        conn = app_module.get_connection()
+        names = [r["name"] for r in conn.execute("SELECT name FROM creatures")]
+        conn.close()
+        assert names == ["Homebrew"]
+
+
+class TestRoomEnemies:
+    def _hm_room(self, client):
+        client.post("/enroll", data={"name": "Head", "is_hm": "1"}, follow_redirects=False)
+        client.post("/play/rooms", data={"name": "The Pit", "description": ""},
+                    follow_redirects=False)
+        return 1
+
+    def _creature_id(self, app_module, name="Minotaur"):
+        conn = app_module.get_connection()
+        row = conn.execute("SELECT id FROM creatures WHERE name = ?", (name,)).fetchone()
+        conn.close()
+        return row["id"]
+
+    def test_hm_can_send_in_an_enemy(self, client, app_module):
+        room = self._hm_room(client)
+        cid = self._creature_id(app_module)
+        response = client.post(f"/play/room/{room}/enemy", data={"creature_id": str(cid)},
+                               follow_redirects=False)
+        assert response.status_code == 303
+        body = client.get(f"/play/room/{room}").text
+        assert "Minotaur" in body and "sent in Minotaur" in body
+
+    def test_threat_level_defaults_to_the_catalog_value(self, client, app_module):
+        room = self._hm_room(client)
+        client.post(f"/play/room/{room}/enemy",
+                    data={"creature_id": str(self._creature_id(app_module, "Alkalym"))},
+                    follow_redirects=False)
+        enemies = app_module.read_room_enemies(room)
+        assert enemies[0]["threat_level"] == 4  # Alkalym is Expert in the Catalog
+
+    def test_threat_level_is_clamped(self, client, app_module):
+        room = self._hm_room(client)
+        client.post(f"/play/room/{room}/enemy",
+                    data={"creature_id": str(self._creature_id(app_module)), "threat_level": "99"},
+                    follow_redirects=False)
+        assert app_module.read_room_enemies(room)[0]["threat_level"] == 6
+
+    def test_rolling_as_an_enemy_uses_its_threat_dice(self, client, app_module):
+        room = self._hm_room(client)
+        client.post(f"/play/room/{room}/enemy",
+                    data={"creature_id": str(self._creature_id(app_module, "Phoenix"))},
+                    follow_redirects=False)
+        enemy = app_module.read_room_enemies(room)[0]
+        client.post(f"/play/room/{room}/enemy/{enemy['id']}/roll", data={"mode": "threat"},
+                    follow_redirects=False)
+        log = client.get(f"/play/room/{room}/messages").text
+        assert "6d6 keep 5" in log       # Phoenix is Master
+        assert "Phoenix" in log          # attributed to the enemy, not the player
+
+    def test_enemy_d20_roll(self, client, app_module):
+        room = self._hm_room(client)
+        client.post(f"/play/room/{room}/enemy",
+                    data={"creature_id": str(self._creature_id(app_module))}, follow_redirects=False)
+        enemy = app_module.read_room_enemies(room)[0]
+        client.post(f"/play/room/{room}/enemy/{enemy['id']}/roll", data={"mode": "d20"},
+                    follow_redirects=False)
+        assert "1d20" in client.get(f"/play/room/{room}/messages").text
+
+    def test_duplicates_are_numbered(self, client, app_module):
+        room = self._hm_room(client)
+        cid = self._creature_id(app_module)
+        for _ in range(3):
+            client.post(f"/play/room/{room}/enemy", data={"creature_id": str(cid)},
+                        follow_redirects=False)
+        names = [e["name"] for e in app_module.read_room_enemies(room)]
+        assert names == ["Minotaur", "Minotaur 2", "Minotaur 3"]
+
+    def test_dismissing_removes_it_from_the_field(self, client, app_module):
+        room = self._hm_room(client)
+        client.post(f"/play/room/{room}/enemy",
+                    data={"creature_id": str(self._creature_id(app_module))}, follow_redirects=False)
+        enemy = app_module.read_room_enemies(room)[0]
+        client.post(f"/play/room/{room}/enemy/{enemy['id']}/dismiss", follow_redirects=False)
+        assert app_module.read_room_enemies(room) == []
+        assert "left the field" in client.get(f"/play/room/{room}/messages").text
+
+    def test_a_dismissed_enemy_cannot_roll(self, client, app_module):
+        room = self._hm_room(client)
+        client.post(f"/play/room/{room}/enemy",
+                    data={"creature_id": str(self._creature_id(app_module))}, follow_redirects=False)
+        enemy = app_module.read_room_enemies(room)[0]
+        client.post(f"/play/room/{room}/enemy/{enemy['id']}/dismiss", follow_redirects=False)
+        response = client.post(f"/play/room/{room}/enemy/{enemy['id']}/roll",
+                               data={"mode": "threat"}, follow_redirects=False)
+        assert response.status_code == 404
+
+    def test_a_student_cannot_send_in_enemies(self, client, app_module):
+        self._hm_room(client)
+        cid = self._creature_id(app_module)
+        client.post("/logout", follow_redirects=False)
+        client.post("/enroll", data={"name": "Student"}, follow_redirects=False)
+        response = client.post("/play/room/1/enemy", data={"creature_id": str(cid)},
+                               follow_redirects=False)
+        assert response.status_code == 403
+
+    def test_a_student_cannot_roll_as_an_enemy(self, client, app_module):
+        room = self._hm_room(client)
+        client.post(f"/play/room/{room}/enemy",
+                    data={"creature_id": str(self._creature_id(app_module))}, follow_redirects=False)
+        enemy = app_module.read_room_enemies(room)[0]
+        client.post("/logout", follow_redirects=False)
+        client.post("/enroll", data={"name": "Student"}, follow_redirects=False)
+        response = client.post(f"/play/room/{room}/enemy/{enemy['id']}/roll",
+                               data={"mode": "threat"}, follow_redirects=False)
+        assert response.status_code == 403
+
+    def test_logged_out_is_sent_to_login(self, client, app_module):
+        self._hm_room(client)
+        cid = self._creature_id(app_module)
+        client.post("/logout", follow_redirects=False)
+        response = client.post("/play/room/1/enemy", data={"creature_id": str(cid)},
+                               follow_redirects=False)
+        assert response.status_code == 303
+        assert response.headers["location"] == "/login"
+
+    def test_a_closed_room_takes_no_enemies(self, client, app_module):
+        room = self._hm_room(client)
+        cid = self._creature_id(app_module)
+        client.post(f"/play/room/{room}/close", follow_redirects=False)
+        response = client.post(f"/play/room/{room}/enemy", data={"creature_id": str(cid)},
+                               follow_redirects=False)
+        assert response.status_code == 403
+
+    def test_an_enemy_from_another_room_is_not_reachable(self, client, app_module):
+        room = self._hm_room(client)
+        client.post(f"/play/room/{room}/enemy",
+                    data={"creature_id": str(self._creature_id(app_module))}, follow_redirects=False)
+        enemy = app_module.read_room_enemies(room)[0]
+        client.post("/play/rooms", data={"name": "Other", "description": ""}, follow_redirects=False)
+        response = client.post(f"/play/room/2/enemy/{enemy['id']}/roll", data={"mode": "threat"},
+                               follow_redirects=False)
+        assert response.status_code == 404
+
+    def test_students_see_the_field_but_not_the_controls(self, client, app_module):
+        room = self._hm_room(client)
+        client.post(f"/play/room/{room}/enemy",
+                    data={"creature_id": str(self._creature_id(app_module))}, follow_redirects=False)
+        hm_body = client.get(f"/play/room/{room}").text
+        assert "Generate" in hm_body and "Dismiss" in hm_body
+        client.post("/logout", follow_redirects=False)
+        client.post("/enroll", data={"name": "Student"}, follow_redirects=False)
+        student_body = client.get(f"/play/room/{room}").text
+        assert "Minotaur" in student_body
+        assert "Dismiss" not in student_body and "Send in" not in student_body
+
+
 class TestCsvSeed:
     def test_export_includes_owning_player(self, player, app_module):
         make_character(player, "Ryn", rank="Genius")
