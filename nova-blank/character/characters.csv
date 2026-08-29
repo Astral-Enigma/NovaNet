@@ -1,6 +1,6 @@
-name,age,rank,clan,house,trait,trauma,pneuma,deftness,handling,tenacity,wit,perception,composure,pluck,potential
-Jarrett,29,Master,Varna,0,0,200,0,0,0,0,0,0,0,0,0
-Aster,29, novice,0,0,0,4323432,0,0,0,0,0,0,0,0,0
-Jet,39,Master,0,0,0,99999,0,0,0,0,0,0,0,0,0
-Cymon,26,Master,Varna,Serpent,Null,999,999,50,50,50,50,50,50,0,0
-Test,1,1,0,0,0,0,0,1,1,1,1,1,1,3,2
+player,player_is_hm,name,age,rank,clan,house,trait,trauma,pneuma,deftness,handling,tenacity,wit,perception,composure,pluck,potential
+Unassigned,0,Jarrett,29,Master,Varna,0,0,200,0,0,0,0,0,0,0,0,0
+Unassigned,0,Aster,29, novice,0,0,0,4323432,0,0,0,0,0,0,0,0,0
+Unassigned,0,Jet,39,Master,0,0,0,99999,0,0,0,0,0,0,0,0,0
+Unassigned,0,Cymon,26,Master,Varna,Serpent,Null,999,999,50,50,50,50,50,50,0,0
+Unassigned,0,Test,1,1,0,0,0,0,0,1,1,1,1,1,1,3,2
