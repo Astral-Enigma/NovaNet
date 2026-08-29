@@ -111,6 +111,60 @@ persisted local fallback.
 
 ---
 
+## Part I.5 — Against the original design doc
+
+The original NovaNet doc set out a vision and four phases. I–III are essentially done. This
+is the full accounting, including the items that had not been carried into the plan until now.
+
+### The opening To Do list
+
+| Item | Status |
+| --- | --- |
+| Switch to SQLite | **Done** — shipped in Phase II |
+| Make Rank an enum (restrict to the specified options) | Not done → **Phase 1.2** |
+| Reorganize stats based on word length | Not done → **newly added to Phase 0** |
+
+### Phase I — a simple character site
+
+| Item | Status |
+| --- | --- |
+| Landing page shows a list of all current characters | **Diverged** — the landing page is now a branded welcome page and the list lives at `/characters`. See the open question below. |
+| Clicking a name enables editing | **Diverged** — editing is a separate Edit link per row |
+| Character creator page, including deletion | **Done** |
+| Pluck = all other stats halved; Potential = half of Pluck | **Done** (`compute_derived_fields`) |
+
+### Phase II
+
+Player profiles housing characters — **done**. Character list on its own page with
+permission-gated editing — **done**. SQLite — **done**.
+
+### Phase III
+
+Techniques on characters — **done**. Dice rolling — **done**. HM-only enemies section
+generated from the Creature Catalog — **done**, though seeding the catalog's 17 creatures is
+Phase 6. The **Play page** (links to the TTRPG, battles against NPCs) is the one Phase III
+item still outstanding → **Phase 7**.
+
+### Phase IV
+
+Both items are still outstanding and both land in **Phase 9**: messaging between players,
+and requesting a battle with another character.
+
+### The vision paragraphs
+
+| Vision item | Where it lives now |
+| --- | --- |
+| Player profiles housing characters across different forum-based games | Phase 3 (campaigns) |
+| Dice **and potentially card** tools for tabletop use, inside each forum | Dice done; **card tools newly added to Phase 3** |
+| Public messaging — posts like Twitter | Phase 9 (Nova News Network) |
+| Private messaging | Phase 9 |
+| Music overlay, voice chat | Phase 9 |
+| Out-of-game communication with limitations | Phase 9 |
+| Algorithms for sorting relevant posts and finding people to RP with | Phase 9 (Discovery) |
+| Yearbook for current characters, memorial for deceased | Phase 9 |
+
+---
+
 ## Part II — The plan
 
 Ten phases. 0–3 are foundational and sequential. 4–6 are the rules content layer and can
@@ -134,6 +188,11 @@ survive Phase 4's technique engine, let alone Phase 7's combat state machine.
 - **pytest + FastAPI `TestClient`.** The rules engine is almost entirely pure functions over
   integers — it is exceptionally cheap to test, and it is about to become the heart of the app.
 - **Fix the session secret** (see bug 2 above).
+- **Reorganize the stat fields by word length** — an outstanding item from the original
+  doc's To Do list. `FIELDS` drives both the creation form and every table column, so
+  ordering it deliberately (rather than by the order the stats were thought of) is a
+  one-line change that makes the sheet and the character table read cleanly. Cheap, visible,
+  and best done while the templates are being reworked anyway.
 - **Create a `rules/` package** as the single home for every constant the four manuals
   specify: `RANKS`, `RANK_DICE`, `RANK_AP_THRESHOLDS`, `CLANS`, `HOUSES`, `TRAITS`,
   `TRAIT_MATCHUPS`, `CLASSES`, `SKILL_CHECK_DCS`, `STATUS_EFFECTS`, `QUALITY_RANKS`,
@@ -292,6 +351,12 @@ boundary for the school clock, encounters, and the economy.
   campaign-scoped. Confirm before building; it's awkward to reverse.
 - **Optional-rule toggles per campaign** from the Handbook: no passive healing, Reputation
   (−6…6, ±2 per rank), Lore Points, multiracial characters, weapon durability.
+- **Per-campaign tabletop tools.** The original doc puts the tools *inside* each forum:
+  "dice (potentially card) tools for Tabletop usage." The dice roller exists but is global —
+  scope it to the campaign so rolls can be logged to a shared history the whole table sees.
+  **Card tools** are the one vision item never specified further; Nova has no card mechanics
+  in any of the three manuals, so this needs a decision on what it's for (initiative order?
+  random encounters? a Trial format?) before it can be planned.
 
 ---
 
@@ -725,6 +790,13 @@ duel, everything else is filling in tables.
 - **How structured should Burst conditions be?** Roughly two thirds are machine-checkable;
   the rest are narrative. A hybrid — structured where possible, free text otherwise, with the
   engine *prompting* rather than *deciding* — is the pragmatic answer.
+- **Should the landing page go back to being the character list?** The original doc's Phase I
+  specified a landing page listing all characters, where clicking a name opened it for
+  editing. The site has since diverged to a branded welcome page with the list at
+  `/characters` and a separate Edit link per row. The current shape is better once campaigns
+  exist (a global list of every character on the site stops being meaningful), but it is a
+  deliberate departure from the doc and worth confirming rather than leaving implicit.
+- **What are the card tools for?** See Phase 3 — no card mechanics exist in any manual.
 - **Campaign join model** — open, invite-only, or per-campaign. Per-campaign is assumed above.
 - **Real-time or not.** Phase 7 encounters and Phase 9's feed both improve a lot with
   WebSockets and get considerably more complex. Polling is an acceptable v1 for both.
