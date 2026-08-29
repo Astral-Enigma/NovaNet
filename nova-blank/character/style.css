@@ -11,6 +11,13 @@
   justify-self: center;
 }
 
+/* The grid child is <nav>; .nav-links is the <ul> inside it. Placing the area on the
+   inner list left <nav> to auto-place into a single column, so the bar sat in the
+   left third of the page. */
+nav {
+  grid-area: nav;
+}
+
 h1 {
   color: powderblue;
   font-size: 30px;
@@ -27,7 +34,6 @@ h2 {
 }
 
 .nav-links {
-  grid-area: nav;
   display: flex;
   flex-wrap: wrap;
   margin: auto;
