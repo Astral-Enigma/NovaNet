@@ -7,11 +7,13 @@
 #   uv run --with fastapi --with uvicorn --with python-multipart --with itsdangerous python3 main.py
 
 import csv
+import json
 import math
 import os
 import random
 import secrets
 import sqlite3
+from html import escape
 from pathlib import Path
 
 import uvicorn
@@ -304,10 +306,10 @@ def to_typed_technique_values(form):
 
 def render_technique_row(t):
     return (
-        "<tr>" + "".join(f"<td>{t[f]}</td>" for f in TECHNIQUE_FIELDS) +
+        "<tr>" + "".join(f"<td>{esc(t[f])}</td>" for f in TECHNIQUE_FIELDS) +
         f"<td><a href='/technique/{t['id']}/edit'>Edit</a></td>"
         f"<td><form method='post' action='/technique/{t['id']}/delete' style='display:inline' "
-        f"onsubmit=\"return confirm('Delete {t['name']}?')\">"
+        f"onsubmit=\"return confirm({js_string('Delete ' + str(t['name']) + '?')})\">"
         f"<button type='submit'>Delete</button></form></td></tr>"
     )
 
@@ -345,13 +347,13 @@ def to_typed_creature_values(form):
 
 def render_creature_row(c):
     return (
-        "<tr>" + "".join(f"<td>{c[f]}</td>" for f in CREATURE_FIELDS) +
+        "<tr>" + "".join(f"<td>{esc(c[f])}</td>" for f in CREATURE_FIELDS) +
         f"<td><form method='post' action='/enemy/{c['id']}/generate' style='display:inline'>"
         f"<input type='number' name='threat_level' value='{c['default_threat_level']}' min='1' max='6' style='width:3em' />"
         f"<button type='submit'>Generate</button></form></td>"
         f"<td><a href='/enemy/{c['id']}/edit'>Edit</a></td>"
         f"<td><form method='post' action='/enemy/{c['id']}/delete' style='display:inline' "
-        f"onsubmit=\"return confirm('Delete {c['name']}?')\">"
+        f"onsubmit=\"return confirm({js_string('Delete ' + str(c['name']) + '?')})\">"
         f"<button type='submit'>Delete</button></form></td></tr>"
     )
 
@@ -429,7 +431,7 @@ def render_nav(request):
     if current_player:
         role = "HM" if current_player["is_hm"] else "Student"
         auth = (
-            f"<li class='site-section'>Logged in as {current_player['name']} ({role})</li>"
+            f"<li class='site-section'>Logged in as {esc(current_player['name'])} ({role})</li>"
             "<li class='site-section'><form method='post' action='/logout' style='display:inline'>"
             "<button type='submit' class='section-link'>Logout</button></form></li>"
         )
@@ -438,14 +440,29 @@ def render_nav(request):
     return f"<ul class='nav-links'>{items}{auth}</ul>"
 
 
+def esc(value):
+    """Escape a value for interpolation into HTML text or a quoted attribute."""
+    return escape("" if value is None else str(value), quote=True)
+
+
+def js_string(value):
+    """Escape a value as a JS string literal safe inside a double-quoted HTML attribute.
+
+    HTML-escaping alone is not enough here: the parser decodes entities inside the
+    attribute before the JavaScript is parsed, so an apostrophe would still break out of
+    the string. json.dumps produces a properly escaped literal first.
+    """
+    return escape(json.dumps("" if value is None else str(value)), quote=True)
+
+
 def render_character_row(c, show_player):
-    player_cell = f"<td>{c['player_name']}</td>" if show_player else ""
+    player_cell = f"<td>{esc(c['player_name'])}</td>" if show_player else ""
     return (
-        "<tr>" + player_cell + "".join(f"<td>{c[f]}</td>" for f in FIELDS) +
+        "<tr>" + player_cell + "".join(f"<td>{esc(c[f])}</td>" for f in FIELDS) +
         f"<td><a href='/character/{c['id']}/techniques'>Techniques</a></td>"
         f"<td><a href='/character/{c['id']}/edit'>Edit</a></td>"
         f"<td><form method='post' action='/character/{c['id']}/delete' style='display:inline' "
-        f"onsubmit=\"return confirm('Delete {c['name']}?')\">"
+        f"onsubmit=\"return confirm({js_string('Delete ' + str(c['name']) + '?')})\">"
         f"<button type='submit'>Delete</button></form></td></tr>"
     )
 
@@ -465,7 +482,7 @@ def compute_derived_fields(character):
 
 def render_player_options(players, selected_id=None):
     return "".join(
-        f"<option value='{p['id']}'{' selected' if p['id'] == selected_id else ''}>{p['name']}</option>"
+        f"<option value='{p['id']}'{' selected' if p['id'] == selected_id else ''}>{esc(p['name'])}</option>"
         for p in players
     )
 
@@ -498,7 +515,7 @@ def character_list(request: Request):
 
 @app.get("/players", response_class=HTMLResponse)
 def player_list(request: Request):
-    rows = "".join(f"<tr><td><a href='/player/{p['id']}'>{p['name']}</a></td></tr>" for p in read_players())
+    rows = "".join(f"<tr><td><a href='/player/{p['id']}'>{esc(p['name'])}</a></td></tr>" for p in read_players())
     nav = render_nav(request)
     return PLAYERS_FILE.read_text().replace("{{ rows }}", rows).replace("{{ nav }}", nav)
 
@@ -549,7 +566,7 @@ def player_profile(id: int, request: Request):
     nav = render_nav(request)
     return (
         PLAYER_PROFILE_FILE.read_text()
-        .replace("{{ name }}", player["name"])
+        .replace("{{ name }}", esc(player["name"]))
         .replace("{{ rows }}", rows)
         .replace("{{ nav }}", nav)
     )
@@ -580,7 +597,7 @@ def technique_list(id: int, request: Request):
     nav = render_nav(request)
     return (
         TECHNIQUES_FILE.read_text()
-        .replace("{{ character_name }}", character["name"])
+        .replace("{{ character_name }}", esc(character["name"]))
         .replace("{{ id }}", str(id))
         .replace("{{ rows }}", rows)
         .replace("{{ add_link }}", add_link)
@@ -601,7 +618,7 @@ def new_technique_form(id: int, request: Request):
     return (
         TECHNIQUE_NEW_FILE.read_text()
         .replace("{{ id }}", str(id))
-        .replace("{{ character_name }}", character["name"])
+        .replace("{{ character_name }}", esc(character["name"]))
         .replace("{{ nav }}", nav)
     )
 
@@ -647,11 +664,11 @@ def edit_technique_form(id: int, request: Request):
         TECHNIQUE_EDIT_FILE.read_text()
         .replace("{{ id }}", str(id))
         .replace("{{ character_id }}", str(character["id"]))
-        .replace("{{ character_name }}", character["name"])
+        .replace("{{ character_name }}", esc(character["name"]))
         .replace("{{ nav }}", nav)
     )
     for f in TECHNIQUE_FIELDS:
-        html = html.replace(f"{{{{ {f} }}}}", str(technique[f]))
+        html = html.replace(f"{{{{ {f} }}}}", esc(technique[f]))
     return html
 
 
@@ -724,7 +741,7 @@ def edit_character_form(id: int, request: Request):
         .replace("{{ nav }}", nav)
     )
     for f in FIELDS:
-        html = html.replace(f"{{{{ {f} }}}}", str(character[f]))
+        html = html.replace(f"{{{{ {f} }}}}", esc(character[f]))
     return html
 
 
@@ -864,7 +881,7 @@ def edit_enemy_form(id: int, request: Request):
         .replace("{{ nav }}", nav)
     )
     for f in CREATURE_FIELDS:
-        html = html.replace(f"{{{{ {f} }}}}", str(creature[f]))
+        html = html.replace(f"{{{{ {f} }}}}", esc(creature[f]))
     return html
 
 
@@ -920,14 +937,14 @@ async def generate_enemy(id: int, request: Request):
     nav = render_nav(request)
     return (
         ENEMY_GENERATED_FILE.read_text()
-        .replace("{{ name }}", creature["name"])
+        .replace("{{ name }}", esc(creature["name"]))
         .replace("{{ threat_level }}", str(threat_level))
         .replace("{{ stat_rows }}", stat_rows)
-        .replace("{{ talent_name }}", creature["talent_name"])
-        .replace("{{ talent_effect }}", creature["talent_effect"])
+        .replace("{{ talent_name }}", esc(creature["talent_name"]))
+        .replace("{{ talent_effect }}", esc(creature["talent_effect"]))
         .replace("{{ talent_uses }}", str(talent_uses))
         .replace("{{ talent_cooldown }}", str(talent_cooldown))
-        .replace("{{ drops }}", creature["drops"])
+        .replace("{{ drops }}", esc(creature["drops"]))
         .replace("{{ nav }}", nav)
     )
 
