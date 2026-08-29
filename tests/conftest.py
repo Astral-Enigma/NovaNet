@@ -32,6 +32,7 @@ def app_module(tmp_path, monkeypatch):
     seed_copy = tmp_path / "characters.csv"
     seed_copy.write_text("")
     module.CSV_FILE = seed_copy
+    module.SNAPSHOT_FILE = tmp_path / "seed.json"
 
     conn = module.get_connection()
     for table in ("room_messages", "room_members", "rooms", "techniques", "characters", "players"):

@@ -52,6 +52,9 @@ app = FastAPI()
 app.add_middleware(SessionMiddleware, secret_key=load_session_secret())
 
 CSV_FILE = Path(__file__).parent / "characters.csv"
+# The complete backup. characters.csv stays as a legacy fallback for databases seeded
+# before snapshots existed.
+SNAPSHOT_FILE = Path(__file__).parent / "seed.json"
 DB_FILE = DATA_DIR / "characters.db"
 HOME_FILE = Path(__file__).parent / "home.html"
 CHARACTER_NEW_FILE = Path(__file__).parent / "character_new.html"
@@ -401,6 +404,79 @@ def seed_creature_catalog():
         conn.close()
 
 
+# Everything a table creates. characters.csv only ever covered players and characters, so
+# techniques, rooms and their logs were lost on every deploy with no way back. Order matters
+# on restore: a row's referents are loaded before it.
+SNAPSHOT_TABLES = [
+    "players", "characters", "techniques", "creatures",
+    "rooms", "room_enemies", "room_members", "room_messages",
+]
+SNAPSHOT_VERSION = 1
+
+
+def table_columns(conn, table):
+    return [row["name"] for row in conn.execute(f"PRAGMA table_info({table})")]
+
+
+def export_snapshot():
+    """Write every table to seed.json, the file the app reloads from on an empty database."""
+    conn = get_connection()
+    try:
+        data = {"version": SNAPSHOT_VERSION, "exported_at": utc_now(), "tables": {}}
+        for table in SNAPSHOT_TABLES:
+            rows = conn.execute(f"SELECT * FROM {table} ORDER BY id").fetchall()
+            data["tables"][table] = [dict(row) for row in rows]
+    finally:
+        conn.close()
+    payload = json.dumps(data, indent=1, sort_keys=True)
+    try:
+        SNAPSHOT_FILE.write_text(payload)
+    except OSError:
+        # A read-only filesystem must not break the app.
+        pass
+    return payload
+
+
+def load_snapshot_if_needed():
+    """Restore from seed.json when the database is empty.
+
+    Only columns that still exist are restored, so a snapshot taken before a schema change
+    keeps loading instead of failing outright. Ids are preserved because techniques, room
+    membership and the message log all reference them.
+    """
+    if not SNAPSHOT_FILE.exists():
+        return False
+    conn = get_connection()
+    try:
+        if conn.execute("SELECT COUNT(*) FROM players").fetchone()[0] > 0:
+            return False
+        try:
+            data = json.loads(SNAPSHOT_FILE.read_text())
+        except (OSError, ValueError):
+            return False
+        tables = data.get("tables") or {}
+        if not tables.get("players"):
+            return False
+        for table in SNAPSHOT_TABLES:
+            rows = tables.get(table) or []
+            if not rows:
+                continue
+            existing = set(table_columns(conn, table))
+            for row in rows:
+                columns = [c for c in row if c in existing]
+                if not columns:
+                    continue
+                conn.execute(
+                    f"INSERT OR IGNORE INTO {table} ({', '.join(columns)}) "
+                    f"VALUES ({', '.join('?' for _ in columns)})",
+                    [row[c] for c in columns],
+                )
+        conn.commit()
+        return True
+    finally:
+        conn.close()
+
+
 def export_characters_csv():
     """Write every character back to the seed CSV, owning player included.
 
@@ -445,7 +521,8 @@ def to_typed_values(character):
 
 
 init_db()
-migrate_csv_if_needed()
+if not load_snapshot_if_needed():
+    migrate_csv_if_needed()
 seed_creature_catalog()
 
 
@@ -975,6 +1052,17 @@ def export_csv(request: Request, token: str = ""):
         content=CSV_FILE.read_text() if CSV_FILE.exists() else "",
         media_type="text/csv",
         headers={"Content-Disposition": "attachment; filename=characters.csv"},
+    )
+
+
+@app.get("/export/snapshot.json")
+def export_snapshot_route(request: Request, token: str = ""):
+    if not export_token_is_valid(token) and get_current_player(request) is None:
+        return RedirectResponse(url="/login", status_code=303)
+    return Response(
+        content=export_snapshot(),
+        media_type="application/json",
+        headers={"Content-Disposition": "attachment; filename=seed.json"},
     )
 
 

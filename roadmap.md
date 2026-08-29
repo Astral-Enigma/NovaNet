@@ -189,10 +189,14 @@ is not a backup by itself — it is lost in the same wipe. Data only survives on
 deploy.
 
 `scripts/backup_characters.py` closes that loop: it pulls the live export, sanity-checks it,
-writes it over the committed seed file, and can commit and push. It authenticates with
+writes it over the committed seed files, and can commit and push. It authenticates with
 `NOVANET_EXPORT_TOKEN` (declared in `render.yaml`) so no browser session is needed, and it
-refuses to write when the response is not a CSV, is empty, or has **fewer** characters than
+refuses to write when the response is malformed, is empty, or has **fewer** characters than
 the committed file — the signature of a wipe that already happened. See `scripts/README.md`.
+
+The backup is a **complete snapshot** (`seed.json`) covering every table, not just players
+and characters. Until that landed, techniques and session logs were wiped by every deploy
+with no way back, the same way the creature catalog was.
 
 It is still a manual step that has to be run **before** a deploy, so it narrows the window
 rather than closing it. The permanent fixes remain a paid instance with a disk, or a managed

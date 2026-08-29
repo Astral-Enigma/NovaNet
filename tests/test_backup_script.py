@@ -4,7 +4,10 @@ The script overwrites the only surviving copy of the character data, so the case
 matter most are the ones where it must refuse to write.
 """
 
+import csv
 import importlib.util
+import io
+import json
 import sys
 from pathlib import Path
 
@@ -33,12 +36,24 @@ def csv_text(names):
 def seed(tmp_path, monkeypatch):
     path = tmp_path / "characters.csv"
     monkeypatch.setattr(backup, "SEED_CSV", path)
+    monkeypatch.setattr(backup, "SEED_JSON", tmp_path / "seed.json")
     monkeypatch.setattr(backup, "REPO_ROOT", tmp_path)
     return path
 
 
-def run(monkeypatch, seed, live_text, argv=()):
+def snapshot_for(names):
+    return {"players": [{"id": 1, "name": "Kira"}],
+            "characters": [{"id": i + 1, "name": n} for i, n in enumerate(names)],
+            "techniques": [{"id": 1, "character_id": 1, "name": "Empowered Strike"}]}
+
+
+def run(monkeypatch, seed, live_text, argv=(), snapshot=None):
+    rows = list(csv.DictReader(io.StringIO(live_text))) if live_text.strip() else []
+    names = [r["name"] for r in rows if r.get("name")]
+    tables = snapshot if snapshot is not None else snapshot_for(names)
     monkeypatch.setattr(backup, "fetch_csv", lambda url, token: live_text)
+    monkeypatch.setattr(backup, "fetch_snapshot",
+                        lambda url, token: (json.dumps({"tables": tables}), tables))
     monkeypatch.setattr(sys, "argv", ["backup_characters.py", *argv])
     return backup.main()
 
@@ -96,9 +111,24 @@ class TestHappyPath:
 
     def test_identical_data_is_a_no_op(self, monkeypatch, seed):
         seed.write_text(csv_text(["Ryn"]))
+        assert run(monkeypatch, seed, csv_text(["Ryn"])) == 0  # first run writes seed.json
         before = seed.stat().st_mtime_ns
         assert run(monkeypatch, seed, csv_text(["Ryn"])) == 0
         assert seed.stat().st_mtime_ns == before, "unchanged data should not rewrite the file"
+
+    def test_the_snapshot_is_written_too(self, monkeypatch, seed):
+        assert run(monkeypatch, seed, csv_text(["Ryn"])) == 0
+        data = json.loads(backup.SEED_JSON.read_text())
+        assert [c["name"] for c in data["tables"]["characters"]] == ["Ryn"]
+        assert data["tables"]["techniques"], "techniques must be captured, not just characters"
+
+    def test_a_snapshot_without_tables_is_rejected(self, monkeypatch, seed):
+        seed.write_text(csv_text(["Ryn"]))
+        monkeypatch.setattr(backup, "fetch_snapshot", backup.fetch_snapshot)
+        monkeypatch.setattr(backup, "fetch", lambda url, token, path: "{}")
+        monkeypatch.setattr(sys, "argv", ["backup_characters.py"])
+        assert backup.main() == 1
+        assert seed.read_text() == csv_text(["Ryn"])
 
     def test_does_not_commit_unless_asked(self, monkeypatch, seed):
         calls = []
@@ -110,8 +140,10 @@ class TestHappyPath:
         calls = []
         monkeypatch.setattr(backup, "run_git", lambda args, **k: calls.append(args) or 0)
         assert run(monkeypatch, seed, csv_text(["Ryn"]), ["--commit"]) == 0
-        assert calls[0][0] == "add"
-        assert calls[1][0] == "commit"
+        staged = [a[1] for a in calls if a[0] == "add"]
+        assert any("seed.json" in f for f in staged), "the snapshot must be staged"
+        assert any("characters.csv" in f for f in staged), "the csv must be staged"
+        assert calls[-1][0] == "commit"
         assert not any(a[0] == "push" for a in calls), "must not push without --push"
 
     def test_push_flag_pushes(self, monkeypatch, seed):

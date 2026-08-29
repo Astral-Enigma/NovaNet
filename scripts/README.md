@@ -1,11 +1,21 @@
 # Backing up live character data
 
 NovaNet runs on Render's free tier, where the filesystem is wiped on every deploy. The
-database does not survive one, and neither does the `characters.csv` the app writes beside
-it. The only copy that lives through a deploy is the one **committed to this repository**,
-because that file is what the app seeds from when it starts with an empty database.
+database does not survive one, and neither do the seed files the app writes beside it. The
+only copy that lives through a deploy is the one **committed to this repository**, because
+that is what the app reloads from when it starts with an empty database.
 
-`backup_characters.py` closes that loop.
+`backup_characters.py` closes that loop. It writes two files:
+
+- **`seed.json`** — the complete backup: players, characters, techniques, creatures, rooms,
+  room membership, the message log, and generated enemies. This is what the app restores
+  from, and it preserves row ids so techniques stay attached to their characters and the
+  log stays attached to its room.
+- **`characters.csv`** — players and characters only, kept because it is readable at a
+  glance and because it is the fallback for a database seeded before snapshots existed.
+
+Only `characters.csv` used to be backed up, which meant **techniques and session logs were
+lost on every deploy** with no way to get them back.
 
 ## One-time setup
 
@@ -45,8 +55,9 @@ committed CSV holds, so an un-backed-up character created through the UI is lost
 The script writes over the only surviving copy of the data, so it refuses when something
 looks wrong:
 
-- The response is not a CSV, or is missing expected columns (an error page or a login
-  redirect served instead of data).
+- The snapshot is not valid JSON, or has no `tables` section (an old build, an error page,
+  or a login redirect served instead of data).
+- The CSV is not a CSV, or is missing expected columns.
 - The live export contains no characters at all.
 - The live site has **fewer** characters than the committed file. That is the signature of
   a database that was already wiped and has not been repopulated, or of catching the site

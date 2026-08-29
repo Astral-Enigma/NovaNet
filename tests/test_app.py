@@ -2,6 +2,7 @@
 
 import csv
 import io
+import json
 
 from conftest import make_character
 
@@ -394,6 +395,113 @@ class TestRoomEnemies:
         student_body = client.get(f"/play/room/{room}").text
         assert "Minotaur" in student_body
         assert "Dismiss" not in student_body and "Send in" not in student_body
+
+
+class TestSnapshot:
+    """characters.csv only ever covered players and characters. Everything else - most
+    importantly techniques - was lost on every deploy with no way back."""
+
+    def _full_game(self, client, app_module):
+        cid = make_character(client, "Ryn", rank="Genius")
+        client.post(f"/character/{cid}/techniques", data={
+            "name": "Ardent Stream", "description": "a beam", "toll": "5",
+            "type": "Pneumatic/Composure", "category": "Offensive",
+            "effect": "Roll 1 more d6 and keep 2 more", "burst": "cannot be dodged",
+            "duration": "0"}, follow_redirects=False)
+        client.post("/play/rooms", data={"name": "The Pit", "description": "sparring"},
+                    follow_redirects=False)
+        client.post("/play/room/1/join", data={"character_id": str(cid)}, follow_redirects=False)
+        client.post("/play/room/1/message", data={"body": "a line of play"}, follow_redirects=False)
+        return cid
+
+    def test_snapshot_covers_every_table(self, player, app_module):
+        self._full_game(player, app_module)
+        data = json.loads(app_module.export_snapshot())
+        assert set(data["tables"]) == set(app_module.SNAPSHOT_TABLES)
+        assert data["tables"]["techniques"], "techniques must be captured"
+        assert data["tables"]["rooms"] and data["tables"]["room_messages"]
+
+    def test_techniques_survive_a_wipe(self, player, app_module):
+        """The gap that mattered: a technique is player work, and it had no backup."""
+        self._full_game(player, app_module)
+        app_module.export_snapshot()
+
+        conn = app_module.get_connection()
+        for table in app_module.SNAPSHOT_TABLES:
+            conn.execute(f"DELETE FROM {table}")
+        conn.commit()
+        conn.close()
+
+        assert app_module.load_snapshot_if_needed() is True
+
+        conn = app_module.get_connection()
+        rows = conn.execute(
+            "SELECT techniques.name, characters.name AS owner FROM techniques "
+            "JOIN characters ON characters.id = techniques.character_id"
+        ).fetchall()
+        conn.close()
+        assert [(r["name"], r["owner"]) for r in rows] == [("Ardent Stream", "Ryn")]
+
+    def test_rooms_and_logs_survive_a_wipe(self, player, app_module):
+        self._full_game(player, app_module)
+        app_module.export_snapshot()
+        conn = app_module.get_connection()
+        for table in app_module.SNAPSHOT_TABLES:
+            conn.execute(f"DELETE FROM {table}")
+        conn.commit()
+        conn.close()
+
+        app_module.load_snapshot_if_needed()
+        assert "a line of play" in player.get("/play/room/1/messages").text
+
+    def test_a_populated_database_is_left_alone(self, player, app_module):
+        """Restoring over live data would duplicate or clobber it."""
+        self._full_game(player, app_module)
+        app_module.export_snapshot()
+        assert app_module.load_snapshot_if_needed() is False
+
+    def test_a_snapshot_missing_a_column_still_loads(self, app_module):
+        """A snapshot taken before a schema change must not become unloadable."""
+        app_module.SNAPSHOT_FILE.write_text(json.dumps({
+            "version": 1,
+            "tables": {"players": [{"id": 1, "name": "Kira", "is_hm": 0, "gone_field": "x"}]},
+        }))
+        conn = app_module.get_connection()
+        conn.execute("DELETE FROM players")
+        conn.commit()
+        conn.close()
+
+        assert app_module.load_snapshot_if_needed() is True
+        conn = app_module.get_connection()
+        assert [r["name"] for r in conn.execute("SELECT name FROM players")] == ["Kira"]
+        conn.close()
+
+    def test_an_empty_snapshot_is_ignored(self, app_module):
+        app_module.SNAPSHOT_FILE.write_text(json.dumps({"version": 1, "tables": {"players": []}}))
+        conn = app_module.get_connection()
+        conn.execute("DELETE FROM players")
+        conn.commit()
+        conn.close()
+        assert app_module.load_snapshot_if_needed() is False
+
+    def test_malformed_snapshot_is_ignored(self, app_module):
+        app_module.SNAPSHOT_FILE.write_text("not json at all")
+        conn = app_module.get_connection()
+        conn.execute("DELETE FROM players")
+        conn.commit()
+        conn.close()
+        assert app_module.load_snapshot_if_needed() is False
+
+    def test_endpoint_requires_auth(self, client):
+        response = client.get("/export/snapshot.json", follow_redirects=False)
+        assert response.status_code == 303
+
+    def test_endpoint_serves_json_with_a_token(self, client, monkeypatch):
+        monkeypatch.setenv("NOVANET_EXPORT_TOKEN", "s3cret")
+        response = client.get("/export/snapshot.json?token=s3cret", follow_redirects=False)
+        assert response.status_code == 200
+        assert response.headers["content-type"].startswith("application/json")
+        assert "tables" in response.json()
 
 
 class TestCsvSeed:

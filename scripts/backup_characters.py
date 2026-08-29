@@ -20,6 +20,7 @@ Only stdlib is used so this runs anywhere Python does.
 import argparse
 import csv
 import io
+import json
 import os
 import subprocess
 import sys
@@ -30,6 +31,7 @@ from pathlib import Path
 
 REPO_ROOT = Path(__file__).resolve().parent.parent
 SEED_CSV = REPO_ROOT / "nova-blank" / "character" / "characters.csv"
+SEED_JSON = REPO_ROOT / "nova-blank" / "character" / "seed.json"
 DEFAULT_URL = "https://novanet-yvj8.onrender.com"
 REQUIRED_COLUMNS = {"name", "rank"}
 # Render's free tier sleeps after inactivity and can take a minute to wake up.
@@ -40,8 +42,8 @@ class BackupError(Exception):
     """A problem serious enough that the seed file must not be overwritten."""
 
 
-def fetch_csv(base_url, token):
-    url = base_url.rstrip("/") + "/export/characters.csv"
+def fetch(base_url, token, path):
+    url = base_url.rstrip("/") + path
     if token:
         url += "?" + urllib.parse.urlencode({"token": token})
     try:
@@ -59,6 +61,23 @@ def fetch_csv(base_url, token):
         raise BackupError(f"server returned HTTP {exc.code}") from exc
     except urllib.error.URLError as exc:
         raise BackupError(f"could not reach {base_url}: {exc.reason}") from exc
+
+
+def fetch_csv(base_url, token):
+    return fetch(base_url, token, "/export/characters.csv")
+
+
+def fetch_snapshot(base_url, token):
+    """The complete backup: every table, not just players and characters."""
+    text = fetch(base_url, token, "/export/snapshot.json")
+    try:
+        data = json.loads(text)
+    except ValueError as exc:
+        raise BackupError(f"the snapshot was not valid JSON: {exc}") from exc
+    tables = data.get("tables")
+    if not isinstance(tables, dict) or "characters" not in tables:
+        raise BackupError("the snapshot has no tables section; the server may be an old build")
+    return text, tables
 
 
 def parse_rows(text, label):
@@ -113,14 +132,21 @@ def main():
         # app runs with its data directory inside a checkout.
         local_rows, _ = read_local_rows()
 
-        print(f"Fetching {args.url.rstrip('/')}/export/characters.csv ...")
+        base = args.url.rstrip("/")
+        print(f"Fetching {base}/export/snapshot.json ...")
+        snapshot_text, tables = fetch_snapshot(args.url, args.token)
+        print(f"Fetching {base}/export/characters.csv ...")
         text = fetch_csv(args.url, args.token)
         live_rows, live_fields = parse_rows(text, "the live export")
 
-        print(f"  live:      {len(live_rows)} character(s)")
+        print(f"\n  live:      {len(live_rows)} character(s)")
         print(f"  committed: {len(local_rows)} character(s)")
         for owner, count in sorted(describe(live_rows).items()):
             print(f"    {owner}: {count}")
+        print("  snapshot covers:")
+        for table, rows in sorted(tables.items()):
+            if rows:
+                print(f"    {table}: {len(rows)}")
 
         if not live_rows and not args.force:
             raise BackupError(
@@ -141,26 +167,33 @@ def main():
             print("\n--dry-run: not writing anything.")
             return 0
 
-        unchanged = SEED_CSV.exists() and SEED_CSV.read_text() == text
-        if unchanged:
-            print("\nSeed file already matches the live data; nothing to do.")
+        written = []
+        if not (SEED_JSON.exists() and SEED_JSON.read_text() == snapshot_text):
+            SEED_JSON.write_text(snapshot_text)
+            written.append(SEED_JSON)
+        if not (SEED_CSV.exists() and SEED_CSV.read_text() == text):
+            SEED_CSV.write_text(text)
+            written.append(SEED_CSV)
+        if not written:
+            print("\nSeed files already match the live data; nothing to do.")
             return 0
-
-        SEED_CSV.write_text(text)
-        print(f"\nWrote {SEED_CSV.relative_to(REPO_ROOT)} ({len(live_fields)} columns).")
+        print()
+        for path in written:
+            print(f"Wrote {path.relative_to(REPO_ROOT)}.")
 
         if args.commit:
-            rel = str(SEED_CSV.relative_to(REPO_ROOT))
-            if run_git(["add", rel]) != 0:
-                raise BackupError("git add failed")
-            message = f"Back up live character data ({len(live_rows)} characters)"
+            for path in written:
+                if run_git(["add", str(path.relative_to(REPO_ROOT))]) != 0:
+                    raise BackupError("git add failed")
+            message = f"Back up live data ({len(live_rows)} characters)"
             if run_git(["commit", "-m", message]) != 0:
                 raise BackupError("git commit failed")
             if args.push and run_git(["push"]) != 0:
                 raise BackupError("git push failed")
         else:
             print("\nReview the change, then commit it so the next deploy seeds from it:")
-            print(f"  git add {SEED_CSV.relative_to(REPO_ROOT)} && git commit -m 'Back up live character data'")
+            paths = " ".join(str(p.relative_to(REPO_ROOT)) for p in written)
+            print(f"  git add {paths} && git commit -m 'Back up live data'")
         return 0
     except BackupError as exc:
         print(f"\nERROR: {exc}", file=sys.stderr)
