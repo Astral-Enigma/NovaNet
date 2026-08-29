@@ -122,13 +122,13 @@ is the full accounting, including the items that had not been carried into the p
 | --- | --- |
 | Switch to SQLite | **Done** — shipped in Phase II |
 | Make Rank an enum (restrict to the specified options) | Not done → **Phase 1.2** |
-| Reorganize stats based on word length | Not done → **newly added to Phase 0** |
+| Reorganize stats based on word length | **Deferred by decision** — not scheduled |
 
 ### Phase I — a simple character site
 
 | Item | Status |
 | --- | --- |
-| Landing page shows a list of all current characters | **Diverged** — the landing page is now a branded welcome page and the list lives at `/characters`. See the open question below. |
+| Landing page shows a list of all current characters | **Superseded by decision** — the landing page stays the branded welcome page; the list lives at `/characters`. |
 | Clicking a name enables editing | **Diverged** — editing is a separate Edit link per row |
 | Character creator page, including deletion | **Done** |
 | Pluck = all other stats halved; Potential = half of Pluck | **Done** (`compute_derived_fields`) |
@@ -165,6 +165,32 @@ and requesting a battle with another character.
 
 ---
 
+## Decisions on record
+
+Settled, so they stop being re-litigated:
+
+| Decision | Consequence |
+| --- | --- |
+| **Landing page stays the welcome page** | The original doc's character-list landing page is superseded. |
+| **Stat reorganization by word length: deferred** | Dropped from Phase 0. |
+| **Card tools: deferred** | Dropped from Phase 3. No card mechanics exist in any manual anyway. |
+| **Stay on the Render free tier for now** | No persistent disk. See the data-durability note below. |
+
+### Data durability on the free tier
+
+The free tier wipes the filesystem on every deploy, so the database does not survive one.
+The mitigation now in place: **every character change rewrites `characters.csv`**, which is
+the file the app seeds from on an empty database, and `/export/characters.csv` downloads it.
+The CSV now carries the owning player and their HM flag, so ownership survives a reseed.
+
+**The important caveat:** that CSV lives on the same ephemeral disk as the database. It is
+not a backup by itself — it is lost in the same wipe. Data only survives if the CSV is
+**downloaded and committed to the repository**, which then becomes the seed for the next
+deploy. Until that is automated, the loop is manual and needs doing before any deploy that
+matters. The permanent fixes remain a paid instance with a disk, or a managed database.
+
+---
+
 ## Part II — The plan
 
 Ten phases. 0–3 are foundational and sequential. 4–6 are the rules content layer and can
@@ -188,11 +214,6 @@ survive Phase 4's technique engine, let alone Phase 7's combat state machine.
 - **pytest + FastAPI `TestClient`.** The rules engine is almost entirely pure functions over
   integers — it is exceptionally cheap to test, and it is about to become the heart of the app.
 - **Fix the session secret** (see bug 2 above).
-- **Reorganize the stat fields by word length** — an outstanding item from the original
-  doc's To Do list. `FIELDS` drives both the creation form and every table column, so
-  ordering it deliberately (rather than by the order the stats were thought of) is a
-  one-line change that makes the sheet and the character table read cleanly. Cheap, visible,
-  and best done while the templates are being reworked anyway.
 - **Create a `rules/` package** as the single home for every constant the four manuals
   specify: `RANKS`, `RANK_DICE`, `RANK_AP_THRESHOLDS`, `CLANS`, `HOUSES`, `TRAITS`,
   `TRAIT_MATCHUPS`, `CLASSES`, `SKILL_CHECK_DCS`, `STATUS_EFFECTS`, `QUALITY_RANKS`,
@@ -332,6 +353,7 @@ administering the platform (technical). Split them.
 
 ### Phase 3 — Campaigns (the forums)
 
+
 **Depends on:** Phase 2.
 
 The original design doc describes "player profiles capable of housing multiple characters
@@ -351,12 +373,9 @@ boundary for the school clock, encounters, and the economy.
   campaign-scoped. Confirm before building; it's awkward to reverse.
 - **Optional-rule toggles per campaign** from the Handbook: no passive healing, Reputation
   (−6…6, ±2 per rank), Lore Points, multiracial characters, weapon durability.
-- **Per-campaign tabletop tools.** The original doc puts the tools *inside* each forum:
-  "dice (potentially card) tools for Tabletop usage." The dice roller exists but is global —
-  scope it to the campaign so rolls can be logged to a shared history the whole table sees.
-  **Card tools** are the one vision item never specified further; Nova has no card mechanics
-  in any of the three manuals, so this needs a decision on what it's for (initiative order?
-  random encounters? a Trial format?) before it can be planned.
+- **Scope Play rooms to campaigns.** Rooms (shipped, see Phase 7) are currently global.
+  Once campaigns exist a room should belong to one, so its roster and log stay with the game
+  it belongs to. **Card tools are deferred by decision** and are not scheduled.
 
 ---
 
@@ -583,6 +602,25 @@ stacking, and escalation rules; Phases 4, 5, 6, and 7 all reference it.
 
 **Depends on:** Phases 1, 3, 4, 5, 6. This is where everything above becomes a game.
 
+#### 7.0 Rooms — shipped
+
+The Play page exists now, ahead of the combat engine, as a place to actually play in:
+
+- **Rooms** anyone logged in can open, listed at `/play`.
+- **Join as a character** — a player brings one of their own characters into a room; the
+  roster shows who is present with their rank and Trait.
+- **Text messages** posted in character, and **dice rolls posted into the shared log** —
+  by rank (drawn from `RANK_DICE`), a plain 1d20 for Possibility Rolls, or a custom
+  roll/keep. Rolls render kept dice bold and dropped dice struck through, the same as the
+  standalone roller.
+- The log **polls every 4 seconds** so a room stays live without anyone refreshing.
+
+This is deliberately the manual version: the room records what happened, and the table
+adjudicates. Phase 7's combat engine below turns it into a system that resolves the rules
+itself — encounters, the Possibility/Effectiveness pipeline, and Instant Links become
+structured actions inside a room rather than free text. The room log is the natural place
+for the **event log** that 7.2 requires for Instant Link rewinds.
+
 #### 7.1 Turn structure
 
 Teams alternate; the team holding the single highest **Deftness** goes first, and members
@@ -790,13 +828,6 @@ duel, everything else is filling in tables.
 - **How structured should Burst conditions be?** Roughly two thirds are machine-checkable;
   the rest are narrative. A hybrid — structured where possible, free text otherwise, with the
   engine *prompting* rather than *deciding* — is the pragmatic answer.
-- **Should the landing page go back to being the character list?** The original doc's Phase I
-  specified a landing page listing all characters, where clicking a name opened it for
-  editing. The site has since diverged to a branded welcome page with the list at
-  `/characters` and a separate Edit link per row. The current shape is better once campaigns
-  exist (a global list of every character on the site stops being meaningful), but it is a
-  deliberate departure from the doc and worth confirming rather than leaving implicit.
-- **What are the card tools for?** See Phase 3 — no card mechanics exist in any manual.
 - **Campaign join model** — open, invite-only, or per-campaign. Per-campaign is assumed above.
 - **Real-time or not.** Phase 7 encounters and Phase 9's feed both improve a lot with
   WebSockets and get considerably more complex. Polling is an acceptable v1 for both.

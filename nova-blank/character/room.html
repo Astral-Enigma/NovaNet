@@ -1,0 +1,59 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Nova: {{ room_name }}</title>
+  <link rel="stylesheet" href="/style.css" />
+</head>
+<body>
+  <div class="page">
+    <header class="brand-header">
+      <h1 class="brand">{{ room_name }}</h1>
+    </header>
+    <nav>
+      {{ nav }}
+    </nav>
+    <div class="content">
+      <p class="quotes">{{ room_description }}</p>
+
+      <h2>In the room</h2>
+      <table>
+        <tr><th>Character</th><th>Player</th><th>Rank</th><th>Trait</th></tr>
+        {{ member_rows }}
+      </table>
+
+      <h2>Log</h2>
+      <div class="room-log" id="room-log">
+        {{ messages }}
+      </div>
+
+      {{ controls }}
+
+      <p><a href="/play" class="section-link">&larr; Back to all rooms</a></p>
+    </div>
+  </div>
+
+  <script>
+    // Poll the log so a room stays live without anyone refreshing. The fragment endpoint
+    // returns only the messages, so typing in the message box is never interrupted.
+    (function () {
+      var log = document.getElementById("room-log");
+      if (!log) return;
+      function scrollToLatest() { log.scrollTop = log.scrollHeight; }
+      scrollToLatest();
+      setInterval(function () {
+        fetch("/play/room/{{ id }}/messages", { cache: "no-store" })
+          .then(function (r) { return r.ok ? r.text() : null; })
+          .then(function (html) {
+            if (html === null || html === log.innerHTML) return;
+            var atBottom = log.scrollHeight - log.scrollTop - log.clientHeight < 40;
+            log.innerHTML = html;
+            if (atBottom) scrollToLatest();
+          })
+          .catch(function () { /* transient network error, try again next tick */ });
+      }, 4000);
+    })();
+  </script>
+</body>
+</html>

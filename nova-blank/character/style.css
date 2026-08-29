@@ -101,3 +101,31 @@ form label {
   padding: 10px;
   text-align: center;
 }
+
+.room-log {
+  background-color: white;
+  border: 1px solid black;
+  margin: 10px auto;
+  padding: 8px;
+  max-height: 22em;
+  overflow-y: auto;
+}
+
+.room-log p {
+  margin: 3px 0;
+}
+
+.log-time {
+  color: gray;
+  font-size: 12px;
+  margin-right: 6px;
+}
+
+.log-system {
+  color: gray;
+  font-style: italic;
+}
+
+.log-roll {
+  background-color: #eef6fa;
+}

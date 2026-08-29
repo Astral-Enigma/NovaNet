@@ -13,12 +13,14 @@ import os
 import random
 import secrets
 import sqlite3
+from datetime import datetime, timezone
 from html import escape
 from pathlib import Path
 
 import uvicorn
 from fastapi import FastAPI, HTTPException, Request
 from fastapi.responses import HTMLResponse, RedirectResponse, Response
+from starlette.exceptions import HTTPException as StarletteHTTPException
 from starlette.middleware.sessions import SessionMiddleware
 
 # Hosts like Render give each deploy a fresh, empty filesystem, so anything written next to
@@ -66,6 +68,9 @@ ENEMY_NEW_FILE = Path(__file__).parent / "enemy_new.html"
 ENEMY_EDIT_FILE = Path(__file__).parent / "enemy_edit.html"
 ENEMY_GENERATED_FILE = Path(__file__).parent / "enemy_generated.html"
 DICE_FILE = Path(__file__).parent / "dice.html"
+PLAY_FILE = Path(__file__).parent / "play.html"
+ROOM_FILE = Path(__file__).parent / "room.html"
+ERROR_FILE = Path(__file__).parent / "error.html"
 STYLE_FILE = Path(__file__).parent / "style.css"
 FIELDS = ["name", "age", "rank", "clan", "house", "trait", "trauma", "pneuma", "deftness", "handling", "tenacity", "wit", "perception", "composure", "pluck", "potential",]
 NUMERIC_FIELDS = ["age", "trauma", "pneuma", "deftness", "handling", "tenacity", "wit", "perception", "composure", "pluck", "potential"]
@@ -160,6 +165,40 @@ def init_db():
             )
             """
         )
+        conn.execute(
+            """
+            CREATE TABLE IF NOT EXISTS rooms (
+                id INTEGER PRIMARY KEY AUTOINCREMENT,
+                name TEXT NOT NULL,
+                description TEXT NOT NULL DEFAULT '',
+                created_by INTEGER NOT NULL REFERENCES players(id),
+                created_at TEXT NOT NULL
+            )
+            """
+        )
+        conn.execute(
+            """
+            CREATE TABLE IF NOT EXISTS room_members (
+                id INTEGER PRIMARY KEY AUTOINCREMENT,
+                room_id INTEGER NOT NULL REFERENCES rooms(id),
+                character_id INTEGER NOT NULL REFERENCES characters(id),
+                joined_at TEXT NOT NULL,
+                UNIQUE (room_id, character_id)
+            )
+            """
+        )
+        conn.execute(
+            """
+            CREATE TABLE IF NOT EXISTS room_messages (
+                id INTEGER PRIMARY KEY AUTOINCREMENT,
+                room_id INTEGER NOT NULL REFERENCES rooms(id),
+                character_id INTEGER REFERENCES characters(id),
+                kind TEXT NOT NULL DEFAULT 'text',
+                body TEXT NOT NULL,
+                created_at TEXT NOT NULL
+            )
+            """
+        )
         conn.commit()
         migrate_player_id_if_needed(conn)
         migrate_is_hm_if_needed(conn)
@@ -194,6 +233,12 @@ def get_or_create_unassigned_player(conn):
     return cursor.lastrowid
 
 
+# The seed CSV carries the owning player alongside each character so that ownership and HM
+# status survive a reseed. Older files without these columns still load; their characters
+# fall back to the Unassigned player.
+CSV_COLUMNS = ["player", "player_is_hm"] + FIELDS
+
+
 def migrate_csv_if_needed():
     if not CSV_FILE.exists():
         return
@@ -206,17 +251,63 @@ def migrate_csv_if_needed():
             rows = list(csv.DictReader(f))
         if not rows:
             return
-        unassigned_id = get_or_create_unassigned_player(conn)
+        player_ids = {}
         for row in rows:
+            player_name = (row.get("player") or "").strip()
+            if not player_name:
+                player_id = get_or_create_unassigned_player(conn)
+            elif player_name in player_ids:
+                player_id = player_ids[player_name]
+            else:
+                existing = conn.execute(
+                    "SELECT id FROM players WHERE name = ?", (player_name,)
+                ).fetchone()
+                if existing:
+                    player_id = existing["id"]
+                else:
+                    is_hm = 1 if str(row.get("player_is_hm", "")).strip() in ("1", "true", "True") else 0
+                    player_id = conn.execute(
+                        "INSERT INTO players (name, is_hm) VALUES (?, ?)", (player_name, is_hm)
+                    ).lastrowid
+                player_ids[player_name] = player_id
             values = to_typed_values(row)
             conn.execute(
                 f"INSERT INTO characters (player_id, {', '.join(FIELDS)}) "
                 f"VALUES (?, {', '.join('?' for _ in FIELDS)})",
-                [unassigned_id] + values,
+                [player_id] + values,
             )
         conn.commit()
     finally:
         conn.close()
+
+
+def export_characters_csv():
+    """Write every character back to the seed CSV, owning player included.
+
+    On a host with an ephemeral filesystem this file is lost along with the database, so it
+    only protects data once it has been downloaded and committed to the repository. Keeping
+    it current means the download is always a complete snapshot.
+    """
+    conn = get_connection()
+    try:
+        rows = conn.execute(
+            """
+            SELECT characters.*, players.name AS player, players.is_hm AS player_is_hm
+            FROM characters JOIN players ON players.id = characters.player_id
+            ORDER BY characters.id
+            """
+        ).fetchall()
+    finally:
+        conn.close()
+    try:
+        with open(CSV_FILE, "w", newline="") as f:
+            writer = csv.DictWriter(f, fieldnames=CSV_COLUMNS)
+            writer.writeheader()
+            for row in rows:
+                writer.writerow({c: row[c] for c in CSV_COLUMNS})
+    except OSError:
+        # A read-only filesystem must not break character editing.
+        pass
 
 
 def to_typed_values(character):
@@ -358,6 +449,145 @@ def render_creature_row(c):
     )
 
 
+def utc_now():
+    return datetime.now(timezone.utc).isoformat(timespec="seconds")
+
+
+def format_stamp(raw):
+    """Render a stored ISO timestamp as a short, readable UTC time."""
+    try:
+        return datetime.fromisoformat(raw).strftime("%b %d %H:%M")
+    except (TypeError, ValueError):
+        return str(raw)
+
+
+def read_rooms():
+    conn = get_connection()
+    try:
+        return [
+            dict(row)
+            for row in conn.execute(
+                """
+                SELECT rooms.*, players.name AS creator_name,
+                       (SELECT COUNT(*) FROM room_members WHERE room_id = rooms.id) AS member_count
+                FROM rooms JOIN players ON players.id = rooms.created_by
+                ORDER BY rooms.id DESC
+                """
+            )
+        ]
+    finally:
+        conn.close()
+
+
+def read_room(id):
+    conn = get_connection()
+    try:
+        row = conn.execute("SELECT * FROM rooms WHERE id = ?", (id,)).fetchone()
+        return dict(row) if row else None
+    finally:
+        conn.close()
+
+
+def read_room_members(room_id):
+    conn = get_connection()
+    try:
+        return [
+            dict(row)
+            for row in conn.execute(
+                """
+                SELECT characters.*, room_members.joined_at, players.name AS player_name
+                FROM room_members
+                JOIN characters ON characters.id = room_members.character_id
+                JOIN players ON players.id = characters.player_id
+                WHERE room_members.room_id = ?
+                ORDER BY room_members.id
+                """,
+                (room_id,),
+            )
+        ]
+    finally:
+        conn.close()
+
+
+def read_room_messages(room_id, limit=200):
+    conn = get_connection()
+    try:
+        rows = conn.execute(
+            """
+            SELECT room_messages.*, characters.name AS character_name
+            FROM room_messages
+            LEFT JOIN characters ON characters.id = room_messages.character_id
+            WHERE room_messages.room_id = ?
+            ORDER BY room_messages.id DESC LIMIT ?
+            """,
+            (room_id, limit),
+        )
+        return [dict(row) for row in rows][::-1]
+    finally:
+        conn.close()
+
+
+def post_room_message(room_id, character_id, kind, body):
+    conn = get_connection()
+    try:
+        conn.execute(
+            "INSERT INTO room_messages (room_id, character_id, kind, body, created_at) VALUES (?, ?, ?, ?, ?)",
+            (room_id, character_id, kind, body, utc_now()),
+        )
+        conn.commit()
+    finally:
+        conn.close()
+
+
+def character_in_room(room_id, player_id):
+    """Return the caller's character in this room, or None if they have not joined."""
+    conn = get_connection()
+    try:
+        row = conn.execute(
+            """
+            SELECT characters.* FROM room_members
+            JOIN characters ON characters.id = room_members.character_id
+            WHERE room_members.room_id = ? AND characters.player_id = ?
+            """,
+            (room_id, player_id),
+        ).fetchone()
+        return dict(row) if row else None
+    finally:
+        conn.close()
+
+
+def render_room_messages(messages):
+    if not messages:
+        return "<p class='quotes'>Nothing has happened here yet.</p>"
+    out = []
+    for m in messages:
+        stamp = esc(format_stamp(m["created_at"]))
+        who = esc(m["character_name"] or "Unknown")
+        if m["kind"] == "system":
+            out.append(f"<p class='log-system'><span class='log-time'>{stamp}</span> {esc(m['body'])}</p>")
+        elif m["kind"] == "roll":
+            # Roll bodies are built by the server from rendered dice markup, not user input.
+            out.append(
+                f"<p class='log-roll'><span class='log-time'>{stamp}</span> "
+                f"<strong>{who}</strong> {m['body']}</p>"
+            )
+        else:
+            out.append(
+                f"<p class='log-text'><span class='log-time'>{stamp}</span> "
+                f"<strong>{who}:</strong> {esc(m['body'])}</p>"
+            )
+    return "".join(out)
+
+
+def render_dice_result(all_rolls, keep_count):
+    sorted_rolls = sorted(all_rolls, reverse=True)
+    kept, dropped = sorted_rolls[:keep_count], sorted_rolls[keep_count:]
+    return (
+        "".join(f"<span style='font-weight:bold'>{d}</span> " for d in kept) +
+        "".join(f"<span style='color:gray;text-decoration:line-through'>{d}</span> " for d in dropped)
+    )
+
+
 def roll_dice(count, sides):
     return [random.randint(1, sides) for _ in range(count)]
 
@@ -425,7 +655,7 @@ def render_nav(request):
     ]
     if current_player and current_player["is_hm"]:
         links.append(("Enemies", "/enemies"))
-    links.append(("Play", "#"))
+    links.append(("Play", "/play"))
     links.append(("Nova News Network", "#"))
     items = "".join(f"<li class='site-section'><a href='{href}' class='section-link'>{label}</a></li>" for label, href in links)
     if current_player:
@@ -485,6 +715,55 @@ def render_player_options(players, selected_id=None):
         f"<option value='{p['id']}'{' selected' if p['id'] == selected_id else ''}>{esc(p['name'])}</option>"
         for p in players
     )
+
+
+def render_error_page(request, status, detail):
+    try:
+        nav = render_nav(request)
+    except Exception:
+        # Never let a failure while rendering the nav mask the original error.
+        nav = ""
+    return (
+        ERROR_FILE.read_text()
+        .replace("{{ status }}", esc(status))
+        .replace("{{ detail }}", esc(detail))
+        .replace("{{ nav }}", nav)
+    )
+
+
+@app.exception_handler(StarletteHTTPException)
+async def http_exception_handler(request: Request, exc: StarletteHTTPException):
+    """Render errors as a styled page.
+
+    The default handler returns JSON, which a browser in dark mode paints as white text on
+    a black background - the "blackscreen saying not found" people were running into.
+    """
+    titles = {400: "Bad Request", 403: "Not Permitted", 404: "Not Found", 405: "Not Allowed"}
+    title = titles.get(exc.status_code, f"Error {exc.status_code}")
+    detail = exc.detail if isinstance(exc.detail, str) else "Something went wrong."
+    return HTMLResponse(
+        content=render_error_page(request, title, detail),
+        status_code=exc.status_code,
+        headers=getattr(exc, "headers", None),
+    )
+
+
+@app.get("/export/characters.csv")
+def export_csv(request: Request):
+    if get_current_player(request) is None:
+        return RedirectResponse(url="/login", status_code=303)
+    export_characters_csv()
+    return Response(
+        content=CSV_FILE.read_text() if CSV_FILE.exists() else "",
+        media_type="text/csv",
+        headers={"Content-Disposition": "attachment; filename=characters.csv"},
+    )
+
+
+@app.get("/favicon.ico")
+def favicon():
+    # Browsers request this on every page load; answer it rather than logging a 404 each time.
+    return Response(status_code=204)
 
 
 @app.get("/style.css")
@@ -554,6 +833,7 @@ async def enroll(request: Request):
     finally:
         conn.close()
     request.session["player_id"] = player_id
+    export_characters_csv()
     return RedirectResponse(url="/", status_code=303)
 
 
@@ -770,6 +1050,7 @@ async def edit_character(id: int, request: Request):
         conn.commit()
     finally:
         conn.close()
+    export_characters_csv()
     return RedirectResponse(url="/characters", status_code=303)
 
 
@@ -789,6 +1070,7 @@ async def delete_character(id: int, request: Request):
         conn.commit()
     finally:
         conn.close()
+    export_characters_csv()
     return RedirectResponse(url="/characters", status_code=303)
 
 
@@ -810,6 +1092,7 @@ async def create_character(request: Request):
         conn.commit()
     finally:
         conn.close()
+    export_characters_csv()
     return RedirectResponse(url="/characters", status_code=303)
 
 
@@ -992,6 +1275,239 @@ async def roll_dice_route(request: Request):
         .replace("{{ nav }}", nav)
         .replace("{{ result }}", result)
     )
+
+
+@app.get("/play", response_class=HTMLResponse)
+def play_index(request: Request):
+    current_player = get_current_player(request)
+    rooms = read_rooms()
+    if rooms:
+        rows = "".join(
+            f"<tr><td><a href='/play/room/{r['id']}'>{esc(r['name'])}</a></td>"
+            f"<td>{esc(r['description'])}</td><td>{esc(r['creator_name'])}</td>"
+            f"<td>{r['member_count']}</td><td>{esc(format_stamp(r['created_at']))}</td></tr>"
+            for r in rooms
+        )
+        table = (
+            "<table><tr><th>Room</th><th>About</th><th>Opened by</th>"
+            f"<th>Characters</th><th>Opened</th></tr>{rows}</table>"
+        )
+    else:
+        table = "<p class='quotes'>No rooms are open. Start one below.</p>"
+    if current_player:
+        create_form = (
+            "<h2>Open a room</h2>"
+            "<form method='post' action='/play/rooms'>"
+            "<label>Name: <input type='text' name='name' required maxlength='80' /></label>"
+            "<label>About: <input type='text' name='description' maxlength='200' /></label>"
+            "<button type='submit'>Open</button></form>"
+        )
+    else:
+        create_form = "<p class='quotes'><a href='/login' class='section-link'>Log in to open a room.</a></p>"
+    return (
+        PLAY_FILE.read_text()
+        .replace("{{ rooms }}", table)
+        .replace("{{ create_form }}", create_form)
+        .replace("{{ nav }}", render_nav(request))
+    )
+
+
+@app.post("/play/rooms")
+async def create_room(request: Request):
+    current_player = get_current_player(request)
+    if current_player is None:
+        return RedirectResponse(url="/login", status_code=303)
+    form = await request.form()
+    name = (form.get("name") or "").strip()[:80]
+    if not name:
+        return RedirectResponse(url="/play", status_code=303)
+    description = (form.get("description") or "").strip()[:200]
+    conn = get_connection()
+    try:
+        cursor = conn.execute(
+            "INSERT INTO rooms (name, description, created_by, created_at) VALUES (?, ?, ?, ?)",
+            (name, description, current_player["id"], utc_now()),
+        )
+        conn.commit()
+        room_id = cursor.lastrowid
+    finally:
+        conn.close()
+    return RedirectResponse(url=f"/play/room/{room_id}", status_code=303)
+
+
+@app.get("/play/room/{id}", response_class=HTMLResponse)
+def room_view(id: int, request: Request):
+    room = read_room(id)
+    if room is None:
+        raise HTTPException(status_code=404, detail="Room not found")
+    current_player = get_current_player(request)
+    members = read_room_members(id)
+    member_rows = "".join(
+        f"<tr><td>{esc(m['name'])}</td><td>{esc(m['player_name'])}</td>"
+        f"<td>{esc(m['rank'])}</td><td>{esc(m['trait'])}</td></tr>"
+        for m in members
+    ) or "<tr><td colspan='4'>Nobody has joined yet.</td></tr>"
+
+    mine = character_in_room(id, current_player["id"]) if current_player else None
+    if mine:
+        roll_count, keep_count = RANK_DICE.get(str(mine["rank"]).strip().title(), (1, 1))
+        controls = (
+            f"<p>You are in this room as <strong>{esc(mine['name'])}</strong> "
+            f"({esc(mine['rank'])} &mdash; {roll_count}d6 keep {keep_count}).</p>"
+            f"<form method='post' action='/play/room/{id}/message'>"
+            "<label>Say: <input type='text' name='body' required maxlength='500' autocomplete='off' /></label>"
+            "<button type='submit'>Send</button></form>"
+            f"<form method='post' action='/play/room/{id}/roll'>"
+            "<label>Roll: <select name='mode'>"
+            f"<option value='rank'>My rank ({roll_count}d6 keep {keep_count})</option>"
+            "<option value='d20'>1d20 (Possibility)</option>"
+            "<option value='custom'>Custom</option></select></label>"
+            f"<label>Custom roll: <input type='number' name='roll_count' min='1' max='{MAX_DICE}' value='{roll_count}' /></label>"
+            f"<label>Keep: <input type='number' name='keep_count' min='1' max='{MAX_DICE}' value='{keep_count}' /></label>"
+            "<button type='submit'>Roll</button></form>"
+            f"<form method='post' action='/play/room/{id}/leave' "
+            "onsubmit=\"return confirm('Leave this room?')\">"
+            "<button type='submit'>Leave room</button></form>"
+        )
+    elif current_player:
+        available = [
+            c for c in read_characters_for_player(current_player["id"])
+            if not any(m["id"] == c["id"] for m in members)
+        ]
+        if available:
+            options = "".join(f"<option value='{c['id']}'>{esc(c['name'])}</option>" for c in available)
+            controls = (
+                f"<form method='post' action='/play/room/{id}/join'>"
+                f"<label>Join as: <select name='character_id' required>{options}</select></label>"
+                "<button type='submit'>Join</button></form>"
+            )
+        else:
+            controls = (
+                "<p class='quotes'>You have no characters yet. "
+                "<a href='/characters/new' class='section-link'>Create one</a> to join.</p>"
+            )
+    else:
+        controls = "<p class='quotes'><a href='/login' class='section-link'>Log in to join this room.</a></p>"
+
+    return (
+        ROOM_FILE.read_text()
+        .replace("{{ id }}", str(id))
+        .replace("{{ room_name }}", esc(room["name"]))
+        .replace("{{ room_description }}", esc(room["description"]))
+        .replace("{{ member_rows }}", member_rows)
+        .replace("{{ controls }}", controls)
+        .replace("{{ messages }}", render_room_messages(read_room_messages(id)))
+        .replace("{{ nav }}", render_nav(request))
+    )
+
+
+@app.get("/play/room/{id}/messages", response_class=HTMLResponse)
+def room_messages_fragment(id: int):
+    """Message log on its own, so the room page can poll for new activity."""
+    if read_room(id) is None:
+        raise HTTPException(status_code=404, detail="Room not found")
+    return render_room_messages(read_room_messages(id))
+
+
+def require_room_membership(id, request):
+    """Return (room, character) for a caller allowed to act in this room."""
+    room = read_room(id)
+    if room is None:
+        raise HTTPException(status_code=404, detail="Room not found")
+    current_player = get_current_player(request)
+    if current_player is None:
+        return None, None
+    character = character_in_room(id, current_player["id"])
+    if character is None:
+        raise HTTPException(status_code=403, detail="Join this room as a character first")
+    return room, character
+
+
+@app.post("/play/room/{id}/join")
+async def join_room(id: int, request: Request):
+    if read_room(id) is None:
+        raise HTTPException(status_code=404, detail="Room not found")
+    current_player = get_current_player(request)
+    if current_player is None:
+        return RedirectResponse(url="/login", status_code=303)
+    form = await request.form()
+    try:
+        character_id = int(form["character_id"])
+    except (KeyError, TypeError, ValueError):
+        raise HTTPException(status_code=400, detail="Pick a character to join as")
+    character = read_character(character_id)
+    if character is None:
+        raise HTTPException(status_code=404, detail="Character not found")
+    if character["player_id"] != current_player["id"] and not current_player["is_hm"]:
+        raise HTTPException(status_code=403, detail="That is not your character")
+    conn = get_connection()
+    try:
+        conn.execute(
+            "INSERT OR IGNORE INTO room_members (room_id, character_id, joined_at) VALUES (?, ?, ?)",
+            (id, character_id, utc_now()),
+        )
+        conn.commit()
+    finally:
+        conn.close()
+    post_room_message(id, character_id, "system", f"{character['name']} entered the room.")
+    return RedirectResponse(url=f"/play/room/{id}", status_code=303)
+
+
+@app.post("/play/room/{id}/leave")
+async def leave_room(id: int, request: Request):
+    _room, character = require_room_membership(id, request)
+    if character is None:
+        return RedirectResponse(url="/login", status_code=303)
+    conn = get_connection()
+    try:
+        conn.execute("DELETE FROM room_members WHERE room_id = ? AND character_id = ?", (id, character["id"]))
+        conn.commit()
+    finally:
+        conn.close()
+    post_room_message(id, character["id"], "system", f"{character['name']} left the room.")
+    return RedirectResponse(url=f"/play/room/{id}", status_code=303)
+
+
+@app.post("/play/room/{id}/message")
+async def send_room_message(id: int, request: Request):
+    _room, character = require_room_membership(id, request)
+    if character is None:
+        return RedirectResponse(url="/login", status_code=303)
+    form = await request.form()
+    body = (form.get("body") or "").strip()[:500]
+    if body:
+        post_room_message(id, character["id"], "text", body)
+    return RedirectResponse(url=f"/play/room/{id}", status_code=303)
+
+
+@app.post("/play/room/{id}/roll")
+async def roll_in_room(id: int, request: Request):
+    _room, character = require_room_membership(id, request)
+    if character is None:
+        return RedirectResponse(url="/login", status_code=303)
+    form = await request.form()
+    mode = form.get("mode", "rank")
+    if mode == "d20":
+        result = roll_dice(1, 20)[0]
+        body = f"rolls <strong>1d20</strong>: <strong>{result}</strong>"
+    else:
+        if mode == "rank":
+            roll_count, keep_count = RANK_DICE.get(str(character["rank"]).strip().title(), (1, 1))
+        else:
+            try:
+                roll_count = int(form.get("roll_count", 1))
+                keep_count = int(form.get("keep_count", 1))
+            except (TypeError, ValueError):
+                roll_count, keep_count = 1, 1
+        roll_count = max(1, min(roll_count, MAX_DICE))
+        keep_count = max(1, min(keep_count, roll_count))
+        all_rolls, kept_sum = roll_and_keep(roll_count, keep_count)
+        body = (
+            f"rolls <strong>{roll_count}d6 keep {keep_count}</strong>: "
+            f"{render_dice_result(all_rolls, keep_count)}&rarr; <strong>{kept_sum}</strong>"
+        )
+    post_room_message(id, character["id"], "roll", body)
+    return RedirectResponse(url=f"/play/room/{id}", status_code=303)
 
 
 # Run the app with uvicorn when this file is executed directly.
