@@ -10,6 +10,11 @@ services:
       # every deploy and log everyone out. generateValue creates this once and keeps it.
       - key: NOVANET_SECRET_KEY
         generateValue: true
+      # Lets scripts/backup_characters.py pull the live character data without a browser
+      # session. Copy the generated value out of the Render dashboard into a local
+      # NOVANET_EXPORT_TOKEN to use the script.
+      - key: NOVANET_EXPORT_TOKEN
+        generateValue: true
 
     # WARNING: on the free plan the filesystem is wiped on every deploy, so characters.db
     # and every character in it are lost each time you ship. Persistent disks require a

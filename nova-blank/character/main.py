@@ -748,9 +748,21 @@ async def http_exception_handler(request: Request, exc: StarletteHTTPException):
     )
 
 
+def export_token_is_valid(supplied):
+    """Allow the backup script in without a browser session.
+
+    Only works when NOVANET_EXPORT_TOKEN is configured, so an unset variable can never be
+    matched by an empty query parameter.
+    """
+    expected = os.environ.get("NOVANET_EXPORT_TOKEN", "")
+    if not expected or not supplied:
+        return False
+    return secrets.compare_digest(str(supplied), expected)
+
+
 @app.get("/export/characters.csv")
-def export_csv(request: Request):
-    if get_current_player(request) is None:
+def export_csv(request: Request, token: str = ""):
+    if not export_token_is_valid(token) and get_current_player(request) is None:
         return RedirectResponse(url="/login", status_code=303)
     export_characters_csv()
     return Response(

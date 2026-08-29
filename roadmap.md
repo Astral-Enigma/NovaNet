@@ -183,11 +183,20 @@ The mitigation now in place: **every character change rewrites `characters.csv`*
 the file the app seeds from on an empty database, and `/export/characters.csv` downloads it.
 The CSV now carries the owning player and their HM flag, so ownership survives a reseed.
 
-**The important caveat:** that CSV lives on the same ephemeral disk as the database. It is
-not a backup by itself — it is lost in the same wipe. Data only survives if the CSV is
+**The important caveat:** that CSV lives on the same ephemeral disk as the database, so it
+is not a backup by itself — it is lost in the same wipe. Data only survives once the CSV is
 **downloaded and committed to the repository**, which then becomes the seed for the next
-deploy. Until that is automated, the loop is manual and needs doing before any deploy that
-matters. The permanent fixes remain a paid instance with a disk, or a managed database.
+deploy.
+
+`scripts/backup_characters.py` closes that loop: it pulls the live export, sanity-checks it,
+writes it over the committed seed file, and can commit and push. It authenticates with
+`NOVANET_EXPORT_TOKEN` (declared in `render.yaml`) so no browser session is needed, and it
+refuses to write when the response is not a CSV, is empty, or has **fewer** characters than
+the committed file — the signature of a wipe that already happened. See `scripts/README.md`.
+
+It is still a manual step that has to be run **before** a deploy, so it narrows the window
+rather than closing it. The permanent fixes remain a paid instance with a disk, or a managed
+database.
 
 ---
 
@@ -211,8 +220,10 @@ survive Phase 4's technique engine, let alone Phase 7's combat state machine.
 - **Real migrations** — numbered SQL files plus a `schema_version` table. Fold
   `migrate_player_id_if_needed` / `migrate_is_hm_if_needed` / `migrate_csv_if_needed` into
   migration 001 and close out the CSV era.
-- **pytest + FastAPI `TestClient`.** The rules engine is almost entirely pure functions over
-  integers — it is exceptionally cheap to test, and it is about to become the heart of the app.
+- **pytest + FastAPI `TestClient`** — *started.* `tests/` now covers the creature formula,
+  the roll/keep table, the dice cap, escaping, error pages, Play rooms, the CSV round trip,
+  and the backup script's safety rails. Extend it as each phase lands rather than treating
+  testing as a separate task.
 - **Fix the session secret** (see bug 2 above).
 - **Create a `rules/` package** as the single home for every constant the four manuals
   specify: `RANKS`, `RANK_DICE`, `RANK_AP_THRESHOLDS`, `CLANS`, `HOUSES`, `TRAITS`,

@@ -1,0 +1,61 @@
+# Backing up live character data
+
+NovaNet runs on Render's free tier, where the filesystem is wiped on every deploy. The
+database does not survive one, and neither does the `characters.csv` the app writes beside
+it. The only copy that lives through a deploy is the one **committed to this repository**,
+because that file is what the app seeds from when it starts with an empty database.
+
+`backup_characters.py` closes that loop.
+
+## One-time setup
+
+The export endpoint needs a token so the script can authenticate without a browser session.
+`render.yaml` declares `NOVANET_EXPORT_TOKEN` with `generateValue: true`, so Render creates
+one on the next deploy. Copy it out of the Render dashboard (Environment → the service →
+`NOVANET_EXPORT_TOKEN`) and put it in your shell:
+
+```bash
+export NOVANET_EXPORT_TOKEN='...the value from Render...'
+```
+
+Optionally set `NOVANET_URL` if the deployment moves; it defaults to the current one.
+
+## Use
+
+```bash
+# See what is live and what would change, without writing anything
+python3 scripts/backup_characters.py --dry-run
+
+# Refresh the committed seed file
+python3 scripts/backup_characters.py
+
+# Refresh and commit it
+python3 scripts/backup_characters.py --commit
+
+# Refresh, commit, and push - note this triggers a deploy, which wipes the live database.
+# It comes straight back from the seed file you just committed.
+python3 scripts/backup_characters.py --commit --push
+```
+
+**Run this before any deploy that matters.** A deploy resets live data to whatever the
+committed CSV holds, so an un-backed-up character created through the UI is lost.
+
+## Safety rails
+
+The script writes over the only surviving copy of the data, so it refuses when something
+looks wrong:
+
+- The response is not a CSV, or is missing expected columns (an error page or a login
+  redirect served instead of data).
+- The live export contains no characters at all.
+- The live site has **fewer** characters than the committed file. That is the signature of
+  a database that was already wiped and has not been repopulated, or of catching the site
+  mid-deploy. Override with `--force` only when the live copy really is the one to keep.
+
+Nothing is committed or pushed unless you pass `--commit` / `--push`.
+
+## What this does not solve
+
+This is a manual loop, and it only protects data that was backed up *before* a deploy. The
+permanent fixes remain a paid Render instance with a persistent disk (`render.yaml` has the
+config commented out ready to go) or a managed database.
