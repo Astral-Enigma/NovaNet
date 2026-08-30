@@ -19,6 +19,7 @@ from pathlib import Path
 
 import uvicorn
 from fastapi import FastAPI, HTTPException, Request
+from fastapi.exceptions import RequestValidationError
 from fastapi.responses import HTMLResponse, RedirectResponse, Response
 from starlette.exceptions import HTTPException as StarletteHTTPException
 from starlette.middleware.sessions import SessionMiddleware
@@ -826,6 +827,19 @@ def render_room_messages(messages):
     return "".join(out)
 
 
+def rank_for_threat(level):
+    """Rank name for a Threat Level, clamped.
+
+    Spawning clamps to 1-6, but a stored row can arrive from a snapshot or a hand edit, and
+    a single bad value should not take down the whole room page with an IndexError.
+    """
+    try:
+        level = int(level)
+    except (TypeError, ValueError):
+        level = 1
+    return RANK_ORDER[max(1, min(len(RANK_ORDER), level)) - 1]
+
+
 def render_enemy_panel(room_id, enemies, is_hm, is_closed):
     """The enemy field. Everyone sees who is on it; only the HM gets the controls."""
     if not enemies and not is_hm:
@@ -837,7 +851,7 @@ def render_enemy_panel(room_id, enemies, is_hm, is_closed):
         except (TypeError, ValueError):
             stats = {}
         stat_text = ", ".join(f"{k} {v}" for k, v in stats.items())
-        roll_count, keep_count = RANK_DICE[RANK_ORDER[e["threat_level"] - 1]]
+        roll_count, keep_count = RANK_DICE[rank_for_threat(e["threat_level"])]
         actions = ""
         if is_hm and not is_closed:
             actions = (
@@ -855,7 +869,7 @@ def render_enemy_panel(room_id, enemies, is_hm, is_closed):
             talent += f" ({e['talent_uses']} uses, {e['talent_cooldown']} round cooldown)"
         rows.append(
             f"<tr><td>{esc(e['name'])}</td>"
-            f"<td>{esc(RANK_ORDER[e['threat_level'] - 1])} ({e['threat_level']})</td>"
+            f"<td>{esc(rank_for_threat(e['threat_level']))} ({e['threat_level']})</td>"
             f"<td>{esc(stat_text)}</td><td>{talent}</td><td>{actions}</td></tr>"
         )
     table = (
@@ -869,7 +883,7 @@ def render_enemy_panel(room_id, enemies, is_hm, is_closed):
         if creatures:
             options = "".join(
                 f"<option value='{c['id']}'>{esc(c['name'])} "
-                f"({esc(RANK_ORDER[max(1, min(6, c['default_threat_level'])) - 1])})</option>"
+                f"({esc(rank_for_threat(c['default_threat_level']))})</option>"
                 for c in creatures
             )
             spawn = (
@@ -1085,6 +1099,32 @@ def export_snapshot_route(request: Request, token: str = ""):
         content=export_snapshot(),
         media_type="application/json",
         headers={"Content-Disposition": "attachment; filename=seed.json"},
+    )
+
+
+@app.exception_handler(RequestValidationError)
+async def validation_exception_handler(request: Request, exc: RequestValidationError):
+    """A malformed path or form value should read as a page, not as raw JSON."""
+    return HTMLResponse(
+        content=render_error_page(request, "Bad Request", "That address or form value was not valid."),
+        status_code=400,
+    )
+
+
+@app.exception_handler(Exception)
+async def unhandled_exception_handler(request: Request, exc: Exception):
+    """Last resort.
+
+    Starlette's default 500 is plain text, which a browser in dark mode paints as white on
+    black - the same blackscreen the JSON 404 used to cause. Anything unexpected should
+    still look like Nova and offer a way back.
+    """
+    return HTMLResponse(
+        content=render_error_page(
+            request, "Something went wrong",
+            "That request could not be completed. The Headmaster has been notified.",
+        ),
+        status_code=500,
     )
 
 
@@ -1812,7 +1852,7 @@ async def spawn_room_enemy(id: int, request: Request):
     summary = ", ".join(f"{skill} {value}" for skill, value in stats.items())
     post_room_message(
         id, None, "system",
-        f"{current_player['name']} sent in {name} ({RANK_ORDER[threat_level - 1]}, "
+        f"{current_player['name']} sent in {name} ({rank_for_threat(threat_level)}, "
         f"threat {threat_level}) - {summary}.",
     )
     return RedirectResponse(url=f"/play/room/{id}", status_code=303)
@@ -1832,7 +1872,7 @@ async def roll_as_enemy(id: int, enemy_id: int, request: Request):
         body = f"rolls <strong>1d20</strong>: <strong>{roll_dice(1, 20)[0]}</strong>"
     else:
         if mode == "threat":
-            roll_count, keep_count = RANK_DICE[RANK_ORDER[enemy["threat_level"] - 1]]
+            roll_count, keep_count = RANK_DICE[rank_for_threat(enemy["threat_level"])]
         else:
             try:
                 roll_count = int(form.get("roll_count", 1))

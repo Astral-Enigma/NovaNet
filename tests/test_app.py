@@ -30,6 +30,28 @@ class TestErrorPages:
     def test_favicon_does_not_404(self, client):
         assert client.get("/favicon.ico").status_code == 204
 
+    def test_a_malformed_path_is_a_page_not_json(self, client):
+        """FastAPI's default 422 is JSON, which dark-mode browsers paint white on black."""
+        response = client.get("/play/room/abc")
+        assert response.status_code == 400
+        assert response.headers["content-type"].startswith("text/html")
+        assert "Bad Request" in response.text
+
+    def test_an_unhandled_error_is_a_page_not_plain_text(self, app_module):
+        """An id too large for SQLite raised OverflowError, and Starlette's default 500 is
+        plain text - the same blackscreen shape as the old JSON 404."""
+        from fastapi.testclient import TestClient
+        with TestClient(app_module.app, raise_server_exceptions=False) as c:
+            response = c.get("/play/room/99999999999999999999")
+        assert response.status_code == 500
+        assert response.headers["content-type"].startswith("text/html")
+        assert "Something went wrong" in response.text
+
+    def test_out_of_range_threat_levels_do_not_break_a_room(self, app_module):
+        """A bad stored row must not take the whole room page down with an IndexError."""
+        for level in (0, 7, 99, None, "nonsense"):
+            assert app_module.rank_for_threat(level) in app_module.RANK_ORDER
+
 
 class TestRooms:
     def _open_room(self, client, name="The Pit"):
