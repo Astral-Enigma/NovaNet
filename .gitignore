@@ -4,3 +4,5 @@ env/
 __pycache__/
 nova-blank/character/characters.db
 nova-blank/character/session_secret.txt
+nova-blank/character/characters.db-wal
+nova-blank/character/characters.db-shm

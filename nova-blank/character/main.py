@@ -97,9 +97,30 @@ RANK_ORDER = list(RANK_DICE)
 
 
 def get_connection():
-    conn = sqlite3.connect(DB_FILE)
+    # busy_timeout and synchronous are per-connection, so they belong here. journal_mode is
+    # a property of the database file itself and is set once in enable_wal(); re-issuing it
+    # per request costs a lock acquisition on every single call.
+    conn = sqlite3.connect(DB_FILE, timeout=30)
     conn.row_factory = sqlite3.Row
+    conn.execute("PRAGMA busy_timeout=30000")
+    conn.execute("PRAGMA synchronous=NORMAL")
     return conn
+
+
+def enable_wal():
+    """Switch the database to write-ahead logging, once, at startup.
+
+    Several people share a room and every open page polls the log, so reads and writes
+    overlap constantly. Under the default rollback journal a writer takes an exclusive lock
+    that blocks readers outright. WAL lets readers carry on while one writer works, which is
+    exactly the shape of this traffic.
+    """
+    conn = sqlite3.connect(DB_FILE, timeout=30)
+    try:
+        conn.execute("PRAGMA journal_mode=WAL")
+        conn.commit()
+    finally:
+        conn.close()
 
 
 def init_db():
@@ -520,6 +541,7 @@ def to_typed_values(character):
     return values
 
 
+enable_wal()
 init_db()
 if not load_snapshot_if_needed():
     migrate_csv_if_needed()
