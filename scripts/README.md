@@ -32,19 +32,32 @@ Optionally set `NOVANET_URL` if the deployment moves; it defaults to the current
 
 ## Use
 
+`scripts/...` is a **relative path, so these only work from the repository root.** Running
+them from `nova-blank/character` - where you would be to start the server - fails with
+`can't open file '.../nova-blank/character/scripts/backup_characters.py'`.
+
 ```bash
+cd ~/workspace/NovaNet
+
 # See what is live and what would change, without writing anything
-python3 scripts/backup_characters.py --dry-run
+./scripts/backup_characters.py --dry-run
 
-# Refresh the committed seed file
-python3 scripts/backup_characters.py
+# Refresh the committed seed files
+./scripts/backup_characters.py
 
-# Refresh and commit it
-python3 scripts/backup_characters.py --commit
+# Refresh and commit them
+./scripts/backup_characters.py --commit
 
 # Refresh, commit, and push - note this triggers a deploy, which wipes the live database.
-# It comes straight back from the seed file you just committed.
-python3 scripts/backup_characters.py --commit --push
+# It comes straight back from the seed files you just committed.
+./scripts/backup_characters.py --commit --push
+```
+
+The script itself does not care where you run it from: it locates the repository from its
+own location, so an absolute path works from anywhere and always writes to the right files.
+
+```bash
+~/workspace/NovaNet/scripts/backup_characters.py --dry-run   # works from any directory
 ```
 
 **Run this before any deploy that matters.** A deploy resets live data to whatever the
