@@ -1,5 +1,5 @@
 {
- "exported_at": "2026-08-30T14:24:58+00:00",
+ "exported_at": "2026-08-30T21:59:45+00:00",
  "tables": {
   "characters": [
    {
@@ -121,6 +121,66 @@
     "trait": "Zin",
     "trauma": 400,
     "wit": 99
+   },
+   {
+    "age": 30,
+    "clan": "Varna",
+    "composure": 3,
+    "deftness": 6,
+    "handling": 8,
+    "house": "Emperor",
+    "id": 7,
+    "name": "\"Sleepy\" Voe Vi'din",
+    "perception": 3,
+    "player_id": 3,
+    "pluck": 16,
+    "pneuma": 13,
+    "potential": 8,
+    "rank": "Rookie",
+    "tenacity": 8,
+    "trait": "Pyre",
+    "trauma": 15,
+    "wit": 3
+   },
+   {
+    "age": 27,
+    "clan": "Forged",
+    "composure": 3,
+    "deftness": 2,
+    "handling": 2,
+    "house": "Patron",
+    "id": 8,
+    "name": "OV-3N",
+    "perception": 2,
+    "player_id": 4,
+    "pluck": 6,
+    "pneuma": 10,
+    "potential": 3,
+    "rank": "Novice",
+    "tenacity": 0,
+    "trait": "Pyre",
+    "trauma": 15,
+    "wit": 3
+   },
+   {
+    "age": 67,
+    "clan": "Kin",
+    "composure": 3,
+    "deftness": 0,
+    "handling": 1,
+    "house": "Emperor",
+    "id": 9,
+    "name": "Filled with Strength",
+    "perception": 0,
+    "player_id": 5,
+    "pluck": 5,
+    "pneuma": 10,
+    "potential": 3,
+    "rank": "Novice",
+    "tenacity": 6,
+    "trait": "Zin",
+    "trauma": 15,
+    "wit": 0
    }
   ],
   "creatures": [
@@ -322,13 +382,625 @@
     "id": 2,
     "is_hm": 1,
     "name": "Aster"
+   },
+   {
+    "id": 3,
+    "is_hm": 0,
+    "name": "Jarrett"
+   },
+   {
+    "id": 4,
+    "is_hm": 0,
+    "name": "Ash"
+   },
+   {
+    "id": 5,
+    "is_hm": 0,
+    "name": "Jart"
    }
   ],
-  "room_enemies": [],
-  "room_members": [],
-  "room_messages": [],
-  "rooms": [],
-  "techniques": []
+  "room_enemies": [
+   {
+    "created_at": "2026-08-30T21:09:13+00:00",
+    "creature_id": 2,
+    "dismissed_at": null,
+    "id": 1,
+    "name": "Gorgon",
+    "room_id": 1,
+    "stats": "{\"Deftness\": 10, \"Handling\": 8, \"Tenacity\": 3, \"Wit\": 3, \"Perception\": 3, \"Composure\": 6}",
+    "talent_cooldown": 1,
+    "talent_effect": "A two turn attack: coils around the target to Bind it, then injects a hardening venom that solidifies over 3 rounds, killing them. Resistible with strong enough Pneuma or medical supplies.",
+    "talent_name": "Terra Toxin",
+    "talent_uses": 14,
+    "threat_level": 2
+   },
+   {
+    "created_at": "2026-08-30T21:47:53+00:00",
+    "creature_id": 2,
+    "dismissed_at": null,
+    "id": 2,
+    "name": "Gorgon 2",
+    "room_id": 1,
+    "stats": "{\"Deftness\": 2, \"Handling\": 1, \"Tenacity\": 1, \"Wit\": 1, \"Perception\": 1, \"Composure\": 1}",
+    "talent_cooldown": 1,
+    "talent_effect": "A two turn attack: coils around the target to Bind it, then injects a hardening venom that solidifies over 3 rounds, killing them. Resistible with strong enough Pneuma or medical supplies.",
+    "talent_name": "Terra Toxin",
+    "talent_uses": 9,
+    "threat_level": 1
+   },
+   {
+    "created_at": "2026-08-30T21:47:59+00:00",
+    "creature_id": 2,
+    "dismissed_at": null,
+    "id": 3,
+    "name": "Gorgon 3",
+    "room_id": 1,
+    "stats": "{\"Deftness\": 6, \"Handling\": 1, \"Tenacity\": 1, \"Wit\": 1, \"Perception\": 1, \"Composure\": 1}",
+    "talent_cooldown": 1,
+    "talent_effect": "A two turn attack: coils around the target to Bind it, then injects a hardening venom that solidifies over 3 rounds, killing them. Resistible with strong enough Pneuma or medical supplies.",
+    "talent_name": "Terra Toxin",
+    "talent_uses": 7,
+    "threat_level": 1
+   },
+   {
+    "created_at": "2026-08-30T21:48:16+00:00",
+    "creature_id": 14,
+    "dismissed_at": null,
+    "id": 4,
+    "name": "The Afflicted",
+    "room_id": 1,
+    "stats": "{\"Deftness\": 1, \"Handling\": 1, \"Tenacity\": 6, \"Wit\": 1, \"Perception\": 1, \"Composure\": 1}",
+    "talent_cooldown": 1,
+    "talent_effect": "Spends a turn calling for help; each consecutive call adds 1d6/2 Afflicted of the same or lower level to the fight.",
+    "talent_name": "Swarm",
+    "talent_uses": 9,
+    "threat_level": 1
+   }
+  ],
+  "room_members": [
+   {
+    "character_id": 7,
+    "id": 1,
+    "joined_at": "2026-08-30T20:59:23+00:00",
+    "room_id": 1
+   },
+   {
+    "character_id": 6,
+    "id": 2,
+    "joined_at": "2026-08-30T21:01:17+00:00",
+    "room_id": 1
+   },
+   {
+    "character_id": 9,
+    "id": 3,
+    "joined_at": "2026-08-30T21:02:59+00:00",
+    "room_id": 1
+   },
+   {
+    "character_id": 8,
+    "id": 4,
+    "joined_at": "2026-08-30T21:06:52+00:00",
+    "room_id": 1
+   }
+  ],
+  "room_messages": [
+   {
+    "body": "\"Sleepy\" Voe Vi'din entered the room.",
+    "character_id": 7,
+    "created_at": "2026-08-30T20:59:23+00:00",
+    "enemy_id": null,
+    "id": 1,
+    "kind": "system",
+    "room_id": 1
+   },
+   {
+    "body": "What's up fuckers",
+    "character_id": 7,
+    "created_at": "2026-08-30T20:59:32+00:00",
+    "enemy_id": null,
+    "id": 2,
+    "kind": "text",
+    "room_id": 1
+   },
+   {
+    "body": "AsterTest entered the room.",
+    "character_id": 6,
+    "created_at": "2026-08-30T21:01:18+00:00",
+    "enemy_id": null,
+    "id": 3,
+    "kind": "system",
+    "room_id": 1
+   },
+   {
+    "body": "Filled with Strength entered the room.",
+    "character_id": 9,
+    "created_at": "2026-08-30T21:02:59+00:00",
+    "enemy_id": null,
+    "id": 4,
+    "kind": "system",
+    "room_id": 1
+   },
+   {
+    "body": "Hello World!",
+    "character_id": 9,
+    "created_at": "2026-08-30T21:03:14+00:00",
+    "enemy_id": null,
+    "id": 5,
+    "kind": "text",
+    "room_id": 1
+   },
+   {
+    "body": "Hey Fill",
+    "character_id": 7,
+    "created_at": "2026-08-30T21:03:51+00:00",
+    "enemy_id": null,
+    "id": 6,
+    "kind": "text",
+    "room_id": 1
+   },
+   {
+    "body": "rolls <strong>6d6 keep 5</strong>: <span style='font-weight:bold'>6</span> <span style='font-weight:bold'>4</span> <span style='font-weight:bold'>4</span> <span style='font-weight:bold'>4</span> <span style='font-weight:bold'>1</span> <span style='color:gray;text-decoration:line-through'>1</span> &rarr; <strong>19</strong>",
+    "character_id": 6,
+    "created_at": "2026-08-30T21:04:30+00:00",
+    "enemy_id": null,
+    "id": 7,
+    "kind": "roll",
+    "room_id": 1
+   },
+   {
+    "body": "rolls <strong>1d20</strong>: <strong>17</strong>",
+    "character_id": 9,
+    "created_at": "2026-08-30T21:05:14+00:00",
+    "enemy_id": null,
+    "id": 8,
+    "kind": "roll",
+    "room_id": 1
+   },
+   {
+    "body": "rolls <strong>2d6 keep 1</strong>: <span style='font-weight:bold'>6</span> <span style='color:gray;text-decoration:line-through'>2</span> &rarr; <strong>6</strong>",
+    "character_id": 7,
+    "created_at": "2026-08-30T21:05:17+00:00",
+    "enemy_id": null,
+    "id": 9,
+    "kind": "roll",
+    "room_id": 1
+   },
+   {
+    "body": "rolls <strong>1d6 keep 1</strong>: <span style='font-weight:bold'>2</span> &rarr; <strong>2</strong>",
+    "character_id": 9,
+    "created_at": "2026-08-30T21:05:21+00:00",
+    "enemy_id": null,
+    "id": 10,
+    "kind": "roll",
+    "room_id": 1
+   },
+   {
+    "body": "rolls <strong>3d6 keep 2</strong>: <span style='font-weight:bold'>2</span> <span style='font-weight:bold'>2</span> <span style='color:gray;text-decoration:line-through'>1</span> &rarr; <strong>4</strong>",
+    "character_id": 9,
+    "created_at": "2026-08-30T21:05:31+00:00",
+    "enemy_id": null,
+    "id": 11,
+    "kind": "roll",
+    "room_id": 1
+   },
+   {
+    "body": "rolls <strong>100d6 keep 1</strong>: <span style='font-weight:bold'>6</span> <span style='color:gray;text-decoration:line-through'>6</span> <span style='color:gray;text-decoration:line-through'>6</span> <span style='color:gray;text-decoration:line-through'>6</span> <span style='color:gray;text-decoration:line-through'>6</span> <span style='color:gray;text-decoration:line-through'>6</span> <span style='color:gray;text-decoration:line-through'>6</span> <span style='color:gray;text-decoration:line-through'>6</span> <span style='color:gray;text-decoration:line-through'>6</span> <span style='color:gray;text-decoration:line-through'>6</span> <span style='color:gray;text-decoration:line-through'>6</span> <span style='color:gray;text-decoration:line-through'>6</span> <span style='color:gray;text-decoration:line-through'>6</span> <span style='color:gray;text-decoration:line-through'>6</span> <span style='color:gray;text-decoration:line-through'>6</span> <span style='color:gray;text-decoration:line-through'>6</span> <span style='color:gray;text-decoration:line-through'>5</span> <span style='color:gray;text-decoration:line-through'>5</span> <span style='color:gray;text-decoration:line-through'>5</span> <span style='color:gray;text-decoration:line-through'>5</span> <span style='color:gray;text-decoration:line-through'>5</span> <span style='color:gray;text-decoration:line-through'>5</span> <span style='color:gray;text-decoration:line-through'>5</span> <span style='color:gray;text-decoration:line-through'>5</span> <span style='color:gray;text-decoration:line-through'>5</span> <span style='color:gray;text-decoration:line-through'>5</span> <span style='color:gray;text-decoration:line-through'>5</span> <span style='color:gray;text-decoration:line-through'>5</span> <span style='color:gray;text-decoration:line-through'>5</span> <span style='color:gray;text-decoration:line-through'>5</span> <span style='color:gray;text-decoration:line-through'>5</span> <span style='color:gray;text-decoration:line-through'>5</span> <span style='color:gray;text-decoration:line-through'>4</span> <span style='color:gray;text-decoration:line-through'>4</span> <span style='color:gray;text-decoration:line-through'>4</span> <span style='color:gray;text-decoration:line-through'>4</span> <span style='color:gray;text-decoration:line-through'>4</span> <span style='color:gray;text-decoration:line-through'>4</span> <span style='color:gray;text-decoration:line-through'>4</span> <span style='color:gray;text-decoration:line-through'>4</span> <span style='color:gray;text-decoration:line-through'>4</span> <span style='color:gray;text-decoration:line-through'>4</span> <span style='color:gray;text-decoration:line-through'>4</span> <span style='color:gray;text-decoration:line-through'>4</span> <span style='color:gray;text-decoration:line-through'>4</span> <span style='color:gray;text-decoration:line-through'>4</span> <span style='color:gray;text-decoration:line-through'>4</span> <span style='color:gray;text-decoration:line-through'>4</span> <span style='color:gray;text-decoration:line-through'>4</span> <span style='color:gray;text-decoration:line-through'>4</span> <span style='color:gray;text-decoration:line-through'>3</span> <span style='color:gray;text-decoration:line-through'>3</span> <span style='color:gray;text-decoration:line-through'>3</span> <span style='color:gray;text-decoration:line-through'>3</span> <span style='color:gray;text-decoration:line-through'>3</span> <span style='color:gray;text-decoration:line-through'>3</span> <span style='color:gray;text-decoration:line-through'>3</span> <span style='color:gray;text-decoration:line-through'>3</span> <span style='color:gray;text-decoration:line-through'>3</span> <span style='color:gray;text-decoration:line-through'>3</span> <span style='color:gray;text-decoration:line-through'>3</span> <span style='color:gray;text-decoration:line-through'>3</span> <span style='color:gray;text-decoration:line-through'>3</span> <span style='color:gray;text-decoration:line-through'>3</span> <span style='color:gray;text-decoration:line-through'>3</span> <span style='color:gray;text-decoration:line-through'>3</span> <span style='color:gray;text-decoration:line-through'>3</span> <span style='color:gray;text-decoration:line-through'>3</span> <span style='color:gray;text-decoration:line-through'>3</span> <span style='color:gray;text-decoration:line-through'>2</span> <span style='color:gray;text-decoration:line-through'>2</span> <span style='color:gray;text-decoration:line-through'>2</span> <span style='color:gray;text-decoration:line-through'>2</span> <span style='color:gray;text-decoration:line-through'>2</span> <span style='color:gray;text-decoration:line-through'>2</span> <span style='color:gray;text-decoration:line-through'>2</span> <span style='color:gray;text-decoration:line-through'>2</span> <span style='color:gray;text-decoration:line-through'>2</span> <span style='color:gray;text-decoration:line-through'>2</span> <span style='color:gray;text-decoration:line-through'>2</span> <span style='color:gray;text-decoration:line-through'>2</span> <span style='color:gray;text-decoration:line-through'>2</span> <span style='color:gray;text-decoration:line-through'>2</span> <span style='color:gray;text-decoration:line-through'>2</span> <span style='color:gray;text-decoration:line-through'>2</span> <span style='color:gray;text-decoration:line-through'>2</span> <span style='color:gray;text-decoration:line-through'>2</span> <span style='color:gray;text-decoration:line-through'>1</span> <span style='color:gray;text-decoration:line-through'>1</span> <span style='color:gray;text-decoration:line-through'>1</span> <span style='color:gray;text-decoration:line-through'>1</span> <span style='color:gray;text-decoration:line-through'>1</span> <span style='color:gray;text-decoration:line-through'>1</span> <span style='color:gray;text-decoration:line-through'>1</span> <span style='color:gray;text-decoration:line-through'>1</span> <span style='color:gray;text-decoration:line-through'>1</span> <span style='color:gray;text-decoration:line-through'>1</span> <span style='color:gray;text-decoration:line-through'>1</span> <span style='color:gray;text-decoration:line-through'>1</span> <span style='color:gray;text-decoration:line-through'>1</span> &rarr; <strong>6</strong>",
+    "character_id": 7,
+    "created_at": "2026-08-30T21:05:32+00:00",
+    "enemy_id": null,
+    "id": 12,
+    "kind": "roll",
+    "room_id": 1
+   },
+   {
+    "body": "rolls <strong>2d6 keep 1</strong>: <span style='font-weight:bold'>3</span> <span style='color:gray;text-decoration:line-through'>2</span> &rarr; <strong>3</strong>",
+    "character_id": 7,
+    "created_at": "2026-08-30T21:05:36+00:00",
+    "enemy_id": null,
+    "id": 13,
+    "kind": "roll",
+    "room_id": 1
+   },
+   {
+    "body": "rolls <strong>2d6 keep 1</strong>: <span style='font-weight:bold'>6</span> <span style='color:gray;text-decoration:line-through'>2</span> &rarr; <strong>6</strong>",
+    "character_id": 7,
+    "created_at": "2026-08-30T21:05:58+00:00",
+    "enemy_id": null,
+    "id": 14,
+    "kind": "roll",
+    "room_id": 1
+   },
+   {
+    "body": "9",
+    "character_id": 7,
+    "created_at": "2026-08-30T21:06:06+00:00",
+    "enemy_id": null,
+    "id": 15,
+    "kind": "text",
+    "room_id": 1
+   },
+   {
+    "body": "rolls <strong>2d6 keep 1</strong>: <span style='font-weight:bold'>4</span> <span style='color:gray;text-decoration:line-through'>1</span> &rarr; <strong>4</strong>",
+    "character_id": 7,
+    "created_at": "2026-08-30T21:06:11+00:00",
+    "enemy_id": null,
+    "id": 16,
+    "kind": "roll",
+    "room_id": 1
+   },
+   {
+    "body": "rolls <strong>2d6 keep 1</strong>: <span style='font-weight:bold'>6</span> <span style='color:gray;text-decoration:line-through'>5</span> &rarr; <strong>6</strong>",
+    "character_id": 7,
+    "created_at": "2026-08-30T21:06:22+00:00",
+    "enemy_id": null,
+    "id": 17,
+    "kind": "roll",
+    "room_id": 1
+   },
+   {
+    "body": "OV-3N entered the room.",
+    "character_id": 8,
+    "created_at": "2026-08-30T21:06:52+00:00",
+    "enemy_id": null,
+    "id": 18,
+    "kind": "system",
+    "room_id": 1
+   },
+   {
+    "body": "H3110",
+    "character_id": 8,
+    "created_at": "2026-08-30T21:07:03+00:00",
+    "enemy_id": null,
+    "id": 19,
+    "kind": "text",
+    "room_id": 1
+   },
+   {
+    "body": "rolls <strong>1d6 keep 1</strong>: <span style='font-weight:bold'>1</span> &rarr; <strong>1</strong>",
+    "character_id": 8,
+    "created_at": "2026-08-30T21:07:26+00:00",
+    "enemy_id": null,
+    "id": 20,
+    "kind": "roll",
+    "room_id": 1
+   },
+   {
+    "body": "rolls <strong>1d6 keep 1</strong>: <span style='font-weight:bold'>1</span> &rarr; <strong>1</strong>",
+    "character_id": 8,
+    "created_at": "2026-08-30T21:07:35+00:00",
+    "enemy_id": null,
+    "id": 21,
+    "kind": "roll",
+    "room_id": 1
+   },
+   {
+    "body": "rolls <strong>1d6 keep 1</strong>: <span style='font-weight:bold'>5</span> &rarr; <strong>5</strong>",
+    "character_id": 8,
+    "created_at": "2026-08-30T21:07:44+00:00",
+    "enemy_id": null,
+    "id": 22,
+    "kind": "roll",
+    "room_id": 1
+   },
+   {
+    "body": "Aster sent in Gorgon (Rookie, threat 2) - Deftness 10, Handling 8, Tenacity 3, Wit 3, Perception 3, Composure 6.",
+    "character_id": null,
+    "created_at": "2026-08-30T21:09:13+00:00",
+    "enemy_id": null,
+    "id": 23,
+    "kind": "system",
+    "room_id": 1
+   },
+   {
+    "body": "L37S B3A7 I7'5 A55",
+    "character_id": 8,
+    "created_at": "2026-08-30T21:15:44+00:00",
+    "enemy_id": null,
+    "id": 24,
+    "kind": "text",
+    "room_id": 1
+   },
+   {
+    "body": "A two turn attack: coils around the target to Bind it, then injects a hardening venom that solidifies over 3 rounds, killing them. Resistible with strong enough Pneuma or medical supplies.",
+    "character_id": 6,
+    "created_at": "2026-08-30T21:18:04+00:00",
+    "enemy_id": null,
+    "id": 25,
+    "kind": "text",
+    "room_id": 1
+   },
+   {
+    "body": "rolls <strong>1d20</strong>: <strong>15</strong>",
+    "character_id": null,
+    "created_at": "2026-08-30T21:19:58+00:00",
+    "enemy_id": 1,
+    "id": 26,
+    "kind": "roll",
+    "room_id": 1
+   },
+   {
+    "body": "rolls <strong>1d20</strong>: <strong>1</strong>",
+    "character_id": 7,
+    "created_at": "2026-08-30T21:20:12+00:00",
+    "enemy_id": null,
+    "id": 27,
+    "kind": "roll",
+    "room_id": 1
+   },
+   {
+    "body": "rolls <strong>1d20</strong>: <strong>17</strong>",
+    "character_id": null,
+    "created_at": "2026-08-30T21:23:56+00:00",
+    "enemy_id": 1,
+    "id": 28,
+    "kind": "roll",
+    "room_id": 1
+   },
+   {
+    "body": "rolls <strong>1d20</strong>: <strong>8</strong>",
+    "character_id": 9,
+    "created_at": "2026-08-30T21:23:59+00:00",
+    "enemy_id": null,
+    "id": 29,
+    "kind": "roll",
+    "room_id": 1
+   },
+   {
+    "body": "rolls <strong>1d20</strong>: <strong>1</strong>",
+    "character_id": null,
+    "created_at": "2026-08-30T21:24:57+00:00",
+    "enemy_id": 1,
+    "id": 30,
+    "kind": "roll",
+    "room_id": 1
+   },
+   {
+    "body": "rolls <strong>2d6 keep 1</strong>: <span style='font-weight:bold'>3</span> <span style='color:gray;text-decoration:line-through'>2</span> &rarr; <strong>3</strong>",
+    "character_id": 7,
+    "created_at": "2026-08-30T21:25:42+00:00",
+    "enemy_id": null,
+    "id": 31,
+    "kind": "roll",
+    "room_id": 1
+   },
+   {
+    "body": "rolls <strong>1d20</strong>: <strong>18</strong>",
+    "character_id": 7,
+    "created_at": "2026-08-30T21:25:54+00:00",
+    "enemy_id": null,
+    "id": 32,
+    "kind": "roll",
+    "room_id": 1
+   },
+   {
+    "body": "rolls <strong>2d6 keep 1</strong>: <span style='font-weight:bold'>5</span> <span style='color:gray;text-decoration:line-through'>5</span> &rarr; <strong>5</strong>",
+    "character_id": 7,
+    "created_at": "2026-08-30T21:28:57+00:00",
+    "enemy_id": null,
+    "id": 33,
+    "kind": "roll",
+    "room_id": 1
+   },
+   {
+    "body": "rolls <strong>2d6 keep 2</strong>: <span style='font-weight:bold'>4</span> <span style='font-weight:bold'>3</span> &rarr; <strong>7</strong>",
+    "character_id": 9,
+    "created_at": "2026-08-30T21:34:27+00:00",
+    "enemy_id": null,
+    "id": 34,
+    "kind": "roll",
+    "room_id": 1
+   },
+   {
+    "body": "rolls <strong>1d20</strong>: <strong>4</strong>",
+    "character_id": 6,
+    "created_at": "2026-08-30T21:37:35+00:00",
+    "enemy_id": null,
+    "id": 35,
+    "kind": "roll",
+    "room_id": 1
+   },
+   {
+    "body": "rolls <strong>1d6 keep 1</strong>: <span style='font-weight:bold'>4</span> &rarr; <strong>4</strong>",
+    "character_id": 8,
+    "created_at": "2026-08-30T21:40:28+00:00",
+    "enemy_id": null,
+    "id": 36,
+    "kind": "roll",
+    "room_id": 1
+   },
+   {
+    "body": "rolls <strong>1d6 keep 1</strong>: <span style='font-weight:bold'>4</span> &rarr; <strong>4</strong>",
+    "character_id": 8,
+    "created_at": "2026-08-30T21:42:29+00:00",
+    "enemy_id": null,
+    "id": 37,
+    "kind": "roll",
+    "room_id": 1
+   },
+   {
+    "body": "rolls <strong>1d20</strong>: <strong>11</strong>",
+    "character_id": 7,
+    "created_at": "2026-08-30T21:42:33+00:00",
+    "enemy_id": null,
+    "id": 38,
+    "kind": "roll",
+    "room_id": 1
+   },
+   {
+    "body": "rolls <strong>1d20</strong>: <strong>17</strong>",
+    "character_id": 8,
+    "created_at": "2026-08-30T21:42:39+00:00",
+    "enemy_id": null,
+    "id": 39,
+    "kind": "roll",
+    "room_id": 1
+   },
+   {
+    "body": "rolls <strong>1d20</strong>: <strong>15</strong>",
+    "character_id": 9,
+    "created_at": "2026-08-30T21:42:43+00:00",
+    "enemy_id": null,
+    "id": 40,
+    "kind": "roll",
+    "room_id": 1
+   },
+   {
+    "body": "rolls <strong>2d6 keep 1</strong>: <span style='font-weight:bold'>5</span> <span style='color:gray;text-decoration:line-through'>4</span> &rarr; <strong>5</strong>",
+    "character_id": 7,
+    "created_at": "2026-08-30T21:45:56+00:00",
+    "enemy_id": null,
+    "id": 41,
+    "kind": "roll",
+    "room_id": 1
+   },
+   {
+    "body": "Aster sent in Gorgon 2 (Novice, threat 1) - Deftness 2, Handling 1, Tenacity 1, Wit 1, Perception 1, Composure 1.",
+    "character_id": null,
+    "created_at": "2026-08-30T21:47:53+00:00",
+    "enemy_id": null,
+    "id": 42,
+    "kind": "system",
+    "room_id": 1
+   },
+   {
+    "body": "Aster sent in Gorgon 3 (Novice, threat 1) - Deftness 6, Handling 1, Tenacity 1, Wit 1, Perception 1, Composure 1.",
+    "character_id": null,
+    "created_at": "2026-08-30T21:47:59+00:00",
+    "enemy_id": null,
+    "id": 43,
+    "kind": "system",
+    "room_id": 1
+   },
+   {
+    "body": "Aster sent in The Afflicted (Novice, threat 1) - Deftness 1, Handling 1, Tenacity 6, Wit 1, Perception 1, Composure 1.",
+    "character_id": null,
+    "created_at": "2026-08-30T21:48:16+00:00",
+    "enemy_id": null,
+    "id": 44,
+    "kind": "system",
+    "room_id": 1
+   },
+   {
+    "body": "rolls <strong>1d20</strong>: <strong>4</strong>",
+    "character_id": 7,
+    "created_at": "2026-08-30T21:50:50+00:00",
+    "enemy_id": null,
+    "id": 45,
+    "kind": "roll",
+    "room_id": 1
+   },
+   {
+    "body": "rolls <strong>1d20</strong>: <strong>7</strong>",
+    "character_id": null,
+    "created_at": "2026-08-30T21:51:07+00:00",
+    "enemy_id": 1,
+    "id": 46,
+    "kind": "roll",
+    "room_id": 1
+   },
+   {
+    "body": "rolls <strong>1d20</strong>: <strong>10</strong>",
+    "character_id": null,
+    "created_at": "2026-08-30T21:51:15+00:00",
+    "enemy_id": 2,
+    "id": 47,
+    "kind": "roll",
+    "room_id": 1
+   },
+   {
+    "body": "rolls <strong>1d20</strong>: <strong>14</strong>",
+    "character_id": null,
+    "created_at": "2026-08-30T21:51:22+00:00",
+    "enemy_id": 3,
+    "id": 48,
+    "kind": "roll",
+    "room_id": 1
+   },
+   {
+    "body": "rolls <strong>1d20</strong>: <strong>4</strong>",
+    "character_id": null,
+    "created_at": "2026-08-30T21:51:30+00:00",
+    "enemy_id": 4,
+    "id": 49,
+    "kind": "roll",
+    "room_id": 1
+   },
+   {
+    "body": "rolls <strong>1d20</strong>: <strong>16</strong>",
+    "character_id": null,
+    "created_at": "2026-08-30T21:52:21+00:00",
+    "enemy_id": 4,
+    "id": 50,
+    "kind": "roll",
+    "room_id": 1
+   },
+   {
+    "body": "rolls <strong>1d20</strong>: <strong>3</strong>",
+    "character_id": 7,
+    "created_at": "2026-08-30T21:52:23+00:00",
+    "enemy_id": null,
+    "id": 51,
+    "kind": "roll",
+    "room_id": 1
+   },
+   {
+    "body": "Get fucked",
+    "character_id": 7,
+    "created_at": "2026-08-30T21:56:35+00:00",
+    "enemy_id": null,
+    "id": 52,
+    "kind": "text",
+    "room_id": 1
+   }
+  ],
+  "rooms": [
+   {
+    "closed_at": null,
+    "created_at": "2026-08-30T20:56:07+00:00",
+    "created_by": 2,
+    "description": "Hello World",
+    "id": 1,
+    "name": "D3Test"
+   }
+  ],
+  "techniques": [
+   {
+    "burst": "No Burst",
+    "category": "Support",
+    "character_id": 8,
+    "description": "Healing Ability",
+    "duration": "Instantaneous",
+    "effect": "Once per battle, roll 1 more d6 per rank anytime you would roll them, then heal any target for that amount.",
+    "id": 1,
+    "name": "Lifelink",
+    "toll": 0,
+    "type": "House Technique"
+   },
+   {
+    "burst": "",
+    "category": "Other",
+    "character_id": 7,
+    "description": "\"Let power flow free! Now I will use the royal decree!\"",
+    "duration": "",
+    "effect": "Once per battle, keep up to 1 less d6 per rank anytime you would keep them, then you may use the ones not kept in place of your next roll.",
+    "id": 2,
+    "name": "Royal Decree",
+    "toll": 1,
+    "type": "Other"
+   },
+   {
+    "burst": "Targeting the same target will double the number rolled on the d6.",
+    "category": "Support",
+    "character_id": 8,
+    "description": "Build Up",
+    "duration": "Instantaneous",
+    "effect": "Roll 1d6. Heal a target for the amount rolled.",
+    "id": 3,
+    "name": "We Need To Cook",
+    "toll": 3,
+    "type": "Pneumatic/Composure"
+   }
+  ]
  },
  "version": 1
 }
