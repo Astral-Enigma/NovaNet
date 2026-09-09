@@ -1,137 +1,443 @@
-.page {
-  display: grid;
-  grid-template-areas:
-    "header header header"
-    "nav nav nav"
-    "content content content";
+@import url('https://fonts.googleapis.com/css2?family=Anton&family=Inter:wght@400;500;600;700&display=swap');
+
+/* ============================================================================
+   NovaNet — editorial layout, high-contrast graphic accents.
+   Calm off-white reading surfaces under bold near-black bands, with a single
+   hot accent and angular cuts doing the shouting.
+   ========================================================================= */
+
+:root {
+  --ink:        #0b0b0e;
+  --ink-2:      #17171d;
+  --ink-3:      #24242e;
+  --paper:      #f6f4f0;
+  --card:       #ffffff;
+  --line:       #e2ded6;
+  --line-2:     #cfcabf;
+  --text:       #1a1a1f;
+  --muted:      #6f6b64;
+
+  --accent:     #e8332a;   /* the hot one */
+  --accent-ink: #b3211a;
+  --nova:       #b0dcea;   /* Nova's signature powderblue, kept */
+  --nova-deep:  #1f6f88;
+
+  --shadow:     0 1px 2px rgba(11,11,14,.06), 0 8px 24px rgba(11,11,14,.06);
+  --shadow-lg:  0 2px 4px rgba(11,11,14,.08), 0 18px 48px rgba(11,11,14,.10);
+
+  --display: 'Anton', 'Arial Narrow', Impact, sans-serif;
+  --body: 'Inter', -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+  --mono: ui-monospace, SFMono-Regular, 'SF Mono', Menlo, monospace;
+
+  --wide: 1180px;
+  --read: 860px;
+  --cut: 10px;             /* corner clip, the angular motif */
 }
+
+*, *::before, *::after { box-sizing: border-box; }
+
+body {
+  margin: 0;
+  background: var(--paper);
+  color: var(--text);
+  font-family: var(--body);
+  font-size: 15px;
+  line-height: 1.6;
+  -webkit-font-smoothing: antialiased;
+}
+
+.page { display: flex; flex-direction: column; min-height: 100vh; }
+
+/* ---------- Masthead ------------------------------------------------------ */
 
 .brand-header {
-  grid-area: header;
-  justify-self: center;
+  position: relative;
+  background: var(--ink);
+  color: #fff;
+  padding: 52px 24px 56px;
+  overflow: hidden;
 }
 
-/* The grid child is <nav>; .nav-links is the <ul> inside it. Placing the area on the
-   inner list left <nav> to auto-place into a single column, so the bar sat in the
-   left third of the page. */
-nav {
-  grid-area: nav;
+/* the skewed slab that gives the header its edge */
+.brand-header::before {
+  content: "";
+  position: absolute;
+  left: -6%;
+  bottom: -28px;
+  width: 112%;
+  height: 64px;
+  background: var(--accent);
+  transform: rotate(-1.6deg);
 }
 
-h1 {
-  color: powderblue;
-  font-size: 30px;
-  font-weight: normal;
-  text-decoration: underline;
+.brand-header::after {
+  content: "";
+  position: absolute;
+  inset: 0;
+  background:
+    repeating-linear-gradient(115deg, rgba(255,255,255,.05) 0 1px, transparent 1px 8px);
+  pointer-events: none;
+}
+
+.brand-header h1,
+h1.brand {
+  position: relative;
+  z-index: 1;
+  max-width: var(--wide);
+  margin: 0 auto;
+  font-family: var(--display);
+  font-weight: 400;
+  font-size: clamp(2.2rem, 6vw, 4.1rem);
+  line-height: .95;
+  letter-spacing: .01em;
   text-transform: uppercase;
+  text-decoration: none;
+  color: #fff;
+  text-wrap: balance;
 }
 
-h2 {
-  color: black;
-  font-size: 25px;
-  font-weight: normal;
-  text-transform: capitalize;
+/* ---------- Navigation ---------------------------------------------------- */
+
+nav {
+  position: sticky;
+  top: 0;
+  z-index: 20;
+  background: var(--ink-2);
+  border-bottom: 1px solid rgba(255,255,255,.08);
 }
 
 .nav-links {
   display: flex;
   flex-wrap: wrap;
-  margin: auto;
-  width: 90%;
-  border: 3px solid black;
-  padding: 10px;
-  text-align: center;
   align-items: center;
-  justify-content: space-between;
+  gap: 2px;
+  max-width: var(--wide);
+  margin: 0 auto;
+  padding: 0 16px;
   list-style: none;
 }
 
 .site-section {
-  padding: 4px 8px;
+  padding: 0;
+  color: rgba(255,255,255,.55);
+  font-size: 12px;
+  letter-spacing: .10em;
+  text-transform: uppercase;
+}
+
+/* the logged-in-as chip sits apart from the links */
+.site-section:not(:has(> a)):not(:has(> form)) {
+  margin-left: auto;
+  padding: 0 14px;
+  color: var(--nova);
+  font-weight: 600;
 }
 
 .section-link {
-  color: powderblue;
+  display: inline-block;
+  position: relative;
+  padding: 15px 14px;
+  color: rgba(255,255,255,.72);
+  font-family: var(--body);
+  font-size: 12px;
+  font-weight: 600;
+  letter-spacing: .10em;
+  text-transform: uppercase;
   text-decoration: none;
-  font-size: 18px;
-  font-weight: bold;
-  font-family: "Futura";
   background: none;
   border: none;
   cursor: pointer;
+  transition: color .15s ease, background .15s ease;
 }
 
-.section-link:hover {
-  text-decoration: underline;
+.section-link::after {
+  content: "";
+  position: absolute;
+  left: 10px; right: 10px; bottom: 9px;
+  height: 2px;
+  background: var(--accent);
+  transform: scaleX(0);
+  transform-origin: left;
+  transition: transform .18s ease;
 }
 
-body {
-  background-color: gray;
+.section-link:hover,
+.section-link:focus-visible {
+  color: #fff;
+  text-decoration: none;
+  outline: none;
 }
+
+.section-link:hover::after,
+.section-link:focus-visible::after { transform: scaleX(1); }
+
+/* ---------- Content ------------------------------------------------------- */
 
 .content {
-  grid-area: content;
-  margin: auto;
-  width: 90%;
-  padding: 10px;
+  flex: 1;
+  width: 100%;
+  max-width: var(--wide);
+  margin: 0 auto;
+  padding: 40px 24px 80px;
+}
+
+h2 {
+  margin: 40px 0 16px;
+  font-family: var(--display);
+  font-weight: 400;
+  font-size: 1.5rem;
+  letter-spacing: .02em;
+  text-transform: uppercase;
+  color: var(--ink);
+}
+
+h2::before {
+  content: "";
+  display: inline-block;
+  width: 12px; height: 12px;
+  margin-right: 10px;
+  background: var(--accent);
+  transform: rotate(45deg) translateY(-1px);
+}
+
+.content > h2:first-child { margin-top: 0; }
+
+a { color: var(--nova-deep); text-decoration-thickness: 1px; text-underline-offset: 2px; }
+a:hover { color: var(--accent); }
+
+/* ---------- Tables -------------------------------------------------------- */
+
+.table-wrap {
+  position: relative;
+  margin: 20px 0 28px;
+  overflow-x: auto;
+  background: var(--card);
+  border: 1px solid var(--line);
+  border-radius: 2px;
+  box-shadow: var(--shadow);
+  clip-path: polygon(0 0, calc(100% - var(--cut)) 0, 100% var(--cut), 100% 100%, var(--cut) 100%, 0 calc(100% - var(--cut)));
 }
 
 table {
+  width: 100%;
   border-collapse: collapse;
-  background-color: white;
-  margin: 10px auto;
+  background: var(--card);
+  font-size: 13.5px;
+  white-space: nowrap;
 }
 
 th {
-  background-color: powderblue;
+  position: sticky;
+  top: 0;
+  background: var(--ink);
+  color: #fff;
+  font-family: var(--body);
+  font-size: 10.5px;
+  font-weight: 700;
+  letter-spacing: .10em;
+  text-transform: uppercase;
+  text-align: left;
+  padding: 11px 14px;
+  border: none;
+  white-space: nowrap;
 }
 
-th, td {
-  border: 1px solid black;
-  padding: 4px;
+td {
+  padding: 11px 14px;
+  border: none;
+  border-top: 1px solid var(--line);
+  vertical-align: middle;
 }
+
+tbody tr:nth-child(even) td,
+table tr:nth-child(even) td { background: #fbfaf8; }
+
+table tr:hover td { background: #f2f7f9; }
+
+td a { font-weight: 600; }
+
+/* ---------- Forms --------------------------------------------------------- */
+
+form { margin: 0 0 20px; }
 
 form label {
   display: block;
-  margin: 6px 0;
+  margin: 0 0 14px;
+  color: var(--muted);
+  font-size: 11px;
+  font-weight: 700;
+  letter-spacing: .09em;
+  text-transform: uppercase;
 }
+
+input[type="text"],
+input[type="number"],
+input[type="password"],
+select {
+  display: block;
+  width: 100%;
+  max-width: 420px;
+  margin-top: 6px;
+  padding: 10px 12px;
+  background: var(--card);
+  color: var(--text);
+  font-family: var(--body);
+  font-size: 15px;
+  font-weight: 500;
+  letter-spacing: 0;
+  text-transform: none;
+  border: 1px solid var(--line-2);
+  border-radius: 2px;
+  transition: border-color .15s ease, box-shadow .15s ease;
+}
+
+input:focus, select:focus {
+  outline: none;
+  border-color: var(--ink);
+  box-shadow: 0 0 0 3px rgba(232,51,42,.14);
+}
+
+input[readonly] { background: #f0eeea; color: var(--muted); }
+
+input[type="checkbox"] {
+  display: inline-block;
+  width: auto;
+  margin-right: 8px;
+  accent-color: var(--accent);
+  vertical-align: middle;
+}
+
+button, input[type="submit"] {
+  display: inline-block;
+  padding: 11px 22px;
+  background: var(--ink);
+  color: #fff;
+  font-family: var(--body);
+  font-size: 12px;
+  font-weight: 700;
+  letter-spacing: .10em;
+  text-transform: uppercase;
+  border: none;
+  border-radius: 0;
+  cursor: pointer;
+  clip-path: polygon(0 0, calc(100% - 8px) 0, 100% 8px, 100% 100%, 8px 100%, 0 calc(100% - 8px));
+  transition: background .15s ease, transform .08s ease;
+}
+
+button:hover, input[type="submit"]:hover { background: var(--accent); }
+button:active { transform: translateY(1px); }
+
+/* destructive-ish actions inside table rows stay quiet until hovered */
+td form button {
+  padding: 6px 12px;
+  font-size: 10.5px;
+  background: transparent;
+  color: var(--muted);
+  border: 1px solid var(--line-2);
+  clip-path: none;
+}
+td form button:hover { background: var(--accent); color: #fff; border-color: var(--accent); }
+
+/* a form that is really a row of controls */
+.control-row {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: flex-end;
+  gap: 12px;
+  margin: 0 0 14px;
+}
+.control-row label { margin: 0; }
+.control-row input, .control-row select { max-width: 220px; }
+.control-row button { flex: none; }
+
+/* ---------- Panels -------------------------------------------------------- */
 
 .quotes {
-  color: powderblue;
+  max-width: var(--read);
+  margin: 0 auto;
+  padding: 8px 0;
+  color: var(--text);
+  font-size: 1.05rem;
   text-align: center;
 }
 
-.pics {
-  margin: auto;
-  width: 50%;
-  padding: 10px;
-  text-align: center;
-}
+.quotes p { margin: .5em 0; }
+
+.quotes a { font-weight: 600; }
+
+.pics { margin: auto; width: 50%; padding: 10px; text-align: center; }
+
+/* ---------- Room log ------------------------------------------------------ */
 
 .room-log {
-  background-color: white;
-  border: 1px solid black;
-  margin: 10px auto;
-  padding: 8px;
-  max-height: 22em;
+  max-height: 26em;
+  margin: 16px 0 24px;
+  padding: 14px 16px;
   overflow-y: auto;
+  background: var(--ink);
+  border: 1px solid var(--ink-3);
+  border-radius: 2px;
+  clip-path: polygon(0 0, calc(100% - var(--cut)) 0, 100% var(--cut), 100% 100%, var(--cut) 100%, 0 calc(100% - var(--cut)));
+  color: #e8e6e1;
+  font-size: 14px;
 }
 
 .room-log p {
-  margin: 3px 0;
+  margin: 0;
+  padding: 5px 0 5px 12px;
+  border-left: 2px solid transparent;
 }
 
 .log-time {
-  color: gray;
-  font-size: 12px;
-  margin-right: 6px;
+  margin-right: 10px;
+  color: #6d6a78;
+  font-family: var(--mono);
+  font-size: 11px;
+  letter-spacing: .02em;
 }
 
-.log-system {
-  color: gray;
-  font-style: italic;
-}
+.log-text { border-left-color: var(--nova-deep) !important; }
+.log-text strong { color: var(--nova); font-weight: 600; }
 
 .log-roll {
-  background-color: #eef6fa;
+  background: rgba(232,51,42,.09);
+  border-left-color: var(--accent) !important;
+}
+.log-roll strong { color: #ff8d86; }
+
+.log-system {
+  color: #8a8794;
+  font-style: italic;
+  border-left-color: #3a3a46 !important;
+}
+
+/* dice inside a roll line */
+.die {
+  display: inline-block;
+  min-width: 1.6em;
+  margin-right: 3px;
+  padding: 1px 5px;
+  background: #fff;
+  color: var(--ink);
+  font-family: var(--mono);
+  font-weight: 700;
+  text-align: center;
+  border-radius: 2px;
+}
+
+.die-dropped {
+  background: transparent;
+  color: #6d6a78;
+  text-decoration: line-through;
+}
+
+/* ---------- Responsive ---------------------------------------------------- */
+
+@media (max-width: 720px) {
+  .brand-header { padding: 34px 18px 40px; }
+  .content { padding: 26px 16px 60px; }
+  .nav-links { padding: 0 8px; }
+  .section-link { padding: 12px 10px; font-size: 11px; }
+  .site-section:not(:has(> a)):not(:has(> form)) { margin-left: 0; padding: 8px 10px; }
+  input[type="text"], input[type="number"], select { max-width: 100%; }
 }

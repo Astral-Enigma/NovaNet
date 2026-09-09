@@ -16,10 +16,12 @@
     </nav>
     <div class="content">
       {{ add_link }}
-      <table>
+      <div class="table-wrap">
+        <table>
         <tr><th>Name</th><th>Description</th><th>Toll</th><th>Type</th><th>Category</th><th>Effect</th><th>Burst</th><th>Duration</th><th>Edit</th><th>Delete</th></tr>
         {{ rows }}
-      </table>
+        </table>
+      </div>
       <p><a href="/character/{{ id }}/edit" class="section-link">Back to Character</a></p>
     </div>
   </div>

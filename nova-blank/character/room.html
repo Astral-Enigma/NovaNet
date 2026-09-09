@@ -18,10 +18,12 @@
       <p class="quotes">{{ room_description }}</p>
 
       <h2>In the room</h2>
-      <table>
+      <div class="table-wrap">
+        <table>
         <tr><th>Character</th><th>Player</th><th>Rank</th><th>Trait</th></tr>
         {{ member_rows }}
-      </table>
+        </table>
+      </div>
 
       {{ enemy_panel }}
 

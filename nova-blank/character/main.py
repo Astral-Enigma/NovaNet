@@ -855,12 +855,12 @@ def render_enemy_panel(room_id, enemies, is_hm, is_closed):
         actions = ""
         if is_hm and not is_closed:
             actions = (
-                f"<form method='post' action='/play/room/{room_id}/enemy/{e['id']}/roll'>"
+                f"<form class='control-row' method='post' action='/play/room/{room_id}/enemy/{e['id']}/roll'>"
                 "<select name='mode'>"
                 f"<option value='threat'>Threat ({roll_count}d6 keep {keep_count})</option>"
                 "<option value='d20'>1d20</option></select>"
                 "<button type='submit'>Roll</button></form>"
-                f"<form method='post' action='/play/room/{room_id}/enemy/{e['id']}/dismiss' "
+                f"<form class='control-row' method='post' action='/play/room/{room_id}/enemy/{e['id']}/dismiss' "
                 "onsubmit=\"return confirm('Remove this enemy from the field?')\">"
                 "<button type='submit'>Dismiss</button></form>"
             )
@@ -873,8 +873,9 @@ def render_enemy_panel(room_id, enemies, is_hm, is_closed):
             f"<td>{esc(stat_text)}</td><td>{talent}</td><td>{actions}</td></tr>"
         )
     table = (
-        "<table><tr><th>Enemy</th><th>Threat</th><th>Skills</th><th>Talent</th><th></th></tr>"
-        + "".join(rows) + "</table>"
+        "<div class='table-wrap'><table>"
+        "<tr><th>Enemy</th><th>Threat</th><th>Skills</th><th>Talent</th><th></th></tr>"
+        + "".join(rows) + "</table></div>"
     ) if rows else "<p class='quotes'>No enemies on the field.</p>"
 
     spawn = ""
@@ -887,7 +888,7 @@ def render_enemy_panel(room_id, enemies, is_hm, is_closed):
                 for c in creatures
             )
             spawn = (
-                f"<form method='post' action='/play/room/{room_id}/enemy'>"
+                f"<form class='control-row' method='post' action='/play/room/{room_id}/enemy'>"
                 f"<label>Send in: <select name='creature_id' required>{options}</select></label>"
                 "<label>Threat level: <input type='number' name='threat_level' min='1' max='6' "
                 "value='' placeholder='catalog default' /></label>"
@@ -903,8 +904,8 @@ def render_dice_result(all_rolls, keep_count):
     sorted_rolls = sorted(all_rolls, reverse=True)
     kept, dropped = sorted_rolls[:keep_count], sorted_rolls[keep_count:]
     return (
-        "".join(f"<span style='font-weight:bold'>{d}</span> " for d in kept) +
-        "".join(f"<span style='color:gray;text-decoration:line-through'>{d}</span> " for d in dropped)
+        "".join(f"<span class='die'>{d}</span>" for d in kept) +
+        "".join(f"<span class='die die-dropped'>{d}</span>" for d in dropped)
     )
 
 
@@ -1615,15 +1616,16 @@ def play_index(request: Request):
             for r in rooms
         )
         table = (
-            "<table><tr><th>Room</th><th>About</th><th>Opened by</th>"
-            f"<th>Characters</th><th>Opened</th><th>Status</th></tr>{rows}</table>"
+            "<div class='table-wrap'><table>"
+            "<tr><th>Room</th><th>About</th><th>Opened by</th>"
+            f"<th>Characters</th><th>Opened</th><th>Status</th></tr>{rows}</table></div>"
         )
     else:
         table = "<p class='quotes'>No rooms are open. Start one below.</p>"
     if current_player:
         create_form = (
             "<h2>Open a room</h2>"
-            "<form method='post' action='/play/rooms'>"
+            "<form class='control-row' method='post' action='/play/rooms'>"
             "<label>Name: <input type='text' name='name' required maxlength='80' /></label>"
             "<label>About: <input type='text' name='description' maxlength='200' /></label>"
             "<button type='submit'>Open</button></form>"
@@ -1682,12 +1684,12 @@ def room_view(id: int, request: Request):
     if can_close_room(room, current_player):
         if is_closed:
             manage = (
-                f"<form method='post' action='/play/room/{id}/reopen'>"
+                f"<form class='control-row' method='post' action='/play/room/{id}/reopen'>"
                 "<button type='submit'>Reopen room</button></form>"
             )
         else:
             manage = (
-                f"<form method='post' action='/play/room/{id}/close' "
+                f"<form class='control-row' method='post' action='/play/room/{id}/close' "
                 "onsubmit=\"return confirm('Close this room? The log is kept and it can be reopened.')\">"
                 "<button type='submit'>Close room</button></form>"
             )
@@ -1700,7 +1702,7 @@ def room_view(id: int, request: Request):
         note += "The log is kept, but nothing new can be posted.</p>"
         if mine:
             note += (
-                f"<form method='post' action='/play/room/{id}/leave' "
+                f"<form class='control-row' method='post' action='/play/room/{id}/leave' "
                 "onsubmit=\"return confirm('Leave this room?')\">"
                 "<button type='submit'>Leave room</button></form>"
             )
@@ -1710,10 +1712,10 @@ def room_view(id: int, request: Request):
         controls = (
             f"<p>You are in this room as <strong>{esc(mine['name'])}</strong> "
             f"({esc(mine['rank'])} &mdash; {roll_count}d6 keep {keep_count}).</p>"
-            f"<form method='post' action='/play/room/{id}/message'>"
+            f"<form class='control-row' method='post' action='/play/room/{id}/message'>"
             "<label>Say: <input type='text' name='body' required maxlength='500' autocomplete='off' /></label>"
             "<button type='submit'>Send</button></form>"
-            f"<form method='post' action='/play/room/{id}/roll'>"
+            f"<form class='control-row' method='post' action='/play/room/{id}/roll'>"
             "<label>Roll: <select name='mode'>"
             f"<option value='rank'>My rank ({roll_count}d6 keep {keep_count})</option>"
             "<option value='d20'>1d20 (Possibility)</option>"
@@ -1721,7 +1723,7 @@ def room_view(id: int, request: Request):
             f"<label>Custom roll: <input type='number' name='roll_count' min='1' max='{MAX_DICE}' value='{roll_count}' /></label>"
             f"<label>Keep: <input type='number' name='keep_count' min='1' max='{MAX_DICE}' value='{keep_count}' /></label>"
             "<button type='submit'>Roll</button></form>"
-            f"<form method='post' action='/play/room/{id}/leave' "
+            f"<form class='control-row' method='post' action='/play/room/{id}/leave' "
             "onsubmit=\"return confirm('Leave this room?')\">"
             "<button type='submit'>Leave room</button></form>"
         )
@@ -1733,7 +1735,7 @@ def room_view(id: int, request: Request):
         if available:
             options = "".join(f"<option value='{c['id']}'>{esc(c['name'])}</option>" for c in available)
             controls = (
-                f"<form method='post' action='/play/room/{id}/join'>"
+                f"<form class='control-row' method='post' action='/play/room/{id}/join'>"
                 f"<label>Join as: <select name='character_id' required>{options}</select></label>"
                 "<button type='submit'>Join</button></form>"
             )

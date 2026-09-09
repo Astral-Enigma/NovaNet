@@ -34,12 +34,17 @@ def app_module(tmp_path, monkeypatch):
     module.CSV_FILE = seed_copy
     module.SNAPSHOT_FILE = tmp_path / "seed.json"
 
+    # Clear every table the snapshot restores, derived from the app rather than hardcoded:
+    # a list written by hand goes stale the moment a table is added, and a stale one let
+    # real session data out of the committed seed.json leak into these tests.
     conn = module.get_connection()
-    for table in ("room_messages", "room_members", "rooms", "techniques", "characters", "players"):
+    for table in reversed(module.SNAPSHOT_TABLES):
         conn.execute(f"DELETE FROM {table}")
     conn.execute("DELETE FROM sqlite_sequence")
     conn.commit()
     conn.close()
+    # The catalog is reference data the app ships, so put it back after the wipe.
+    module.seed_creature_catalog()
 
     yield module
     sys.modules.pop(spec.name, None)
