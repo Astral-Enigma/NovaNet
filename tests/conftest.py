@@ -21,6 +21,11 @@ def app_module(tmp_path, monkeypatch):
     monkeypatch.setenv("NOVANET_DATA_DIR", str(tmp_path / "data"))
     monkeypatch.setenv("NOVANET_SECRET_KEY", "test-secret-not-used-anywhere-real")
 
+    # main.py imports its sibling modules by name, so the app directory has to be on the
+    # path when it is loaded from a file location rather than as a package.
+    if str(APP_DIR) not in sys.path:
+        sys.path.insert(0, str(APP_DIR))
+
     spec = importlib.util.spec_from_file_location(f"novanet_{tmp_path.name}", APP_DIR / "main.py")
     module = importlib.util.module_from_spec(spec)
     sys.modules[spec.name] = module
