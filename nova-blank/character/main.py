@@ -29,6 +29,7 @@ from starlette.middleware.sessions import SessionMiddleware
 # session secret at a persistent disk instead; it defaults to alongside the code so local
 # development is unchanged.
 DATA_DIR = Path(os.environ.get("NOVANET_DATA_DIR", Path(__file__).parent))
+MIGRATIONS_DIR = Path(__file__).parent / "migrations"
 DATA_DIR.mkdir(parents=True, exist_ok=True)
 SECRET_KEY_FILE = DATA_DIR / "session_secret.txt"
 
@@ -124,168 +125,82 @@ def enable_wal():
         conn.close()
 
 
-def init_db():
+def table_exists(conn, name):
+    return conn.execute(
+        "SELECT 1 FROM sqlite_master WHERE type='table' AND name = ?", (name,)
+    ).fetchone() is not None
+
+
+def ensure_legacy_columns(conn):
+    """Bring a database created before migrations up to what 001 produces.
+
+    These columns arrived as ALTER TABLE in earlier builds, so an older database has the
+    tables but not the columns, and CREATE TABLE IF NOT EXISTS will not add them. Each check
+    is idempotent, so running this against an already-current database does nothing.
+    """
+    additions = [
+        ("characters", "player_id", "ALTER TABLE characters ADD COLUMN player_id INTEGER"),
+        ("players", "is_hm", "ALTER TABLE players ADD COLUMN is_hm INTEGER NOT NULL DEFAULT 0"),
+        ("rooms", "closed_at", "ALTER TABLE rooms ADD COLUMN closed_at TEXT"),
+        ("room_messages", "enemy_id", "ALTER TABLE room_messages ADD COLUMN enemy_id INTEGER"),
+    ]
+    for table, column, statement in additions:
+        if not table_exists(conn, table):
+            continue
+        columns = [row["name"] for row in conn.execute(f"PRAGMA table_info({table})")]
+        if column in columns:
+            continue
+        conn.execute(statement)
+        if table == "characters" and column == "player_id":
+            unassigned_id = get_or_create_unassigned_player(conn)
+            conn.execute("UPDATE characters SET player_id = ? WHERE player_id IS NULL", (unassigned_id,))
+    conn.commit()
+
+
+def applied_schema_version(conn):
+    """The migration number this database is at, or None if it predates the system."""
+    if not table_exists(conn, "schema_version"):
+        return None
+    row = conn.execute("SELECT version FROM schema_version").fetchone()
+    return row["version"] if row else 0
+
+
+def pending_migrations(version):
+    found = []
+    for path in sorted(MIGRATIONS_DIR.glob("*.sql")):
+        try:
+            number = int(path.name.split("_", 1)[0])
+        except ValueError:
+            continue
+        if number > version:
+            found.append((number, path))
+    return found
+
+
+def run_migrations():
+    """Apply every migration the database has not seen yet.
+
+    A database from before this system already holds the schema 001 describes, so it is
+    baselined rather than rebuilt: 001's CREATE TABLE IF NOT EXISTS statements are no-ops
+    against it, and ensure_legacy_columns fills in the columns an older CREATE lacks.
+    """
     conn = get_connection()
     try:
-        conn.execute(
-            """
-            CREATE TABLE IF NOT EXISTS players (
-                id INTEGER PRIMARY KEY AUTOINCREMENT,
-                name TEXT NOT NULL,
-                is_hm INTEGER NOT NULL DEFAULT 0
-            )
-            """
-        )
-        conn.execute(
-            """
-            CREATE TABLE IF NOT EXISTS characters (
-                id INTEGER PRIMARY KEY AUTOINCREMENT,
-                player_id INTEGER NOT NULL REFERENCES players(id),
-                name TEXT NOT NULL,
-                age INTEGER NOT NULL,
-                rank TEXT NOT NULL,
-                clan TEXT NOT NULL,
-                house TEXT NOT NULL,
-                trait TEXT NOT NULL,
-                trauma INTEGER NOT NULL,
-                pneuma INTEGER NOT NULL,
-                deftness INTEGER NOT NULL,
-                handling INTEGER NOT NULL,
-                tenacity INTEGER NOT NULL,
-                wit INTEGER NOT NULL,
-                perception INTEGER NOT NULL,
-                composure INTEGER NOT NULL,
-                pluck INTEGER NOT NULL DEFAULT 0,
-                potential INTEGER NOT NULL DEFAULT 0
-            )
-            """
-        )
-        conn.execute(
-            """
-            CREATE TABLE IF NOT EXISTS techniques (
-                id INTEGER PRIMARY KEY AUTOINCREMENT,
-                character_id INTEGER NOT NULL REFERENCES characters(id),
-                name TEXT NOT NULL,
-                description TEXT NOT NULL,
-                toll INTEGER NOT NULL,
-                type TEXT NOT NULL,
-                category TEXT NOT NULL,
-                effect TEXT NOT NULL,
-                burst TEXT NOT NULL DEFAULT '',
-                duration TEXT NOT NULL DEFAULT ''
-            )
-            """
-        )
-        conn.execute(
-            """
-            CREATE TABLE IF NOT EXISTS creatures (
-                id INTEGER PRIMARY KEY AUTOINCREMENT,
-                name TEXT NOT NULL,
-                description TEXT NOT NULL,
-                habitat TEXT NOT NULL,
-                main_skill TEXT NOT NULL,
-                default_threat_level INTEGER NOT NULL,
-                talent_name TEXT NOT NULL,
-                talent_effect TEXT NOT NULL,
-                drops TEXT NOT NULL
-            )
-            """
-        )
-        conn.execute(
-            """
-            CREATE TABLE IF NOT EXISTS rooms (
-                id INTEGER PRIMARY KEY AUTOINCREMENT,
-                name TEXT NOT NULL,
-                description TEXT NOT NULL DEFAULT '',
-                created_by INTEGER NOT NULL REFERENCES players(id),
-                created_at TEXT NOT NULL,
-                closed_at TEXT
-            )
-            """
-        )
-        conn.execute(
-            """
-            CREATE TABLE IF NOT EXISTS room_members (
-                id INTEGER PRIMARY KEY AUTOINCREMENT,
-                room_id INTEGER NOT NULL REFERENCES rooms(id),
-                character_id INTEGER NOT NULL REFERENCES characters(id),
-                joined_at TEXT NOT NULL,
-                UNIQUE (room_id, character_id)
-            )
-            """
-        )
-        conn.execute(
-            """
-            CREATE TABLE IF NOT EXISTS room_messages (
-                id INTEGER PRIMARY KEY AUTOINCREMENT,
-                room_id INTEGER NOT NULL REFERENCES rooms(id),
-                character_id INTEGER REFERENCES characters(id),
-                enemy_id INTEGER REFERENCES room_enemies(id),
-                kind TEXT NOT NULL DEFAULT 'text',
-                body TEXT NOT NULL,
-                created_at TEXT NOT NULL
-            )
-            """
-        )
-        conn.execute(
-            """
-            CREATE TABLE IF NOT EXISTS room_enemies (
-                id INTEGER PRIMARY KEY AUTOINCREMENT,
-                room_id INTEGER NOT NULL REFERENCES rooms(id),
-                creature_id INTEGER REFERENCES creatures(id),
-                name TEXT NOT NULL,
-                threat_level INTEGER NOT NULL,
-                stats TEXT NOT NULL,
-                talent_name TEXT NOT NULL DEFAULT '',
-                talent_effect TEXT NOT NULL DEFAULT '',
-                talent_uses INTEGER NOT NULL DEFAULT 0,
-                talent_cooldown INTEGER NOT NULL DEFAULT 0,
-                dismissed_at TEXT,
-                created_at TEXT NOT NULL
-            )
-            """
-        )
-        conn.commit()
-        migrate_player_id_if_needed(conn)
-        migrate_is_hm_if_needed(conn)
-        migrate_room_closed_at_if_needed(conn)
-        migrate_message_enemy_id_if_needed(conn)
+        version = applied_schema_version(conn)
+        legacy = version is None and table_exists(conn, "players")
+        if version is None:
+            version = 0
+        for number, path in pending_migrations(version):
+            conn.executescript(path.read_text())
+            if legacy:
+                ensure_legacy_columns(conn)
+            conn.execute("DELETE FROM schema_version")
+            conn.execute("INSERT INTO schema_version (version) VALUES (?)", (number,))
+            conn.commit()
+            version = number
+        return version
     finally:
         conn.close()
-
-
-def migrate_player_id_if_needed(conn):
-    columns = [row["name"] for row in conn.execute("PRAGMA table_info(characters)")]
-    if "player_id" in columns:
-        return
-    conn.execute("ALTER TABLE characters ADD COLUMN player_id INTEGER")
-    unassigned_id = get_or_create_unassigned_player(conn)
-    conn.execute("UPDATE characters SET player_id = ? WHERE player_id IS NULL", (unassigned_id,))
-    conn.commit()
-
-
-def migrate_is_hm_if_needed(conn):
-    columns = [row["name"] for row in conn.execute("PRAGMA table_info(players)")]
-    if "is_hm" in columns:
-        return
-    conn.execute("ALTER TABLE players ADD COLUMN is_hm INTEGER NOT NULL DEFAULT 0")
-    conn.commit()
-
-
-def migrate_room_closed_at_if_needed(conn):
-    columns = [row["name"] for row in conn.execute("PRAGMA table_info(rooms)")]
-    if "closed_at" in columns:
-        return
-    conn.execute("ALTER TABLE rooms ADD COLUMN closed_at TEXT")
-    conn.commit()
-
-
-def migrate_message_enemy_id_if_needed(conn):
-    columns = [row["name"] for row in conn.execute("PRAGMA table_info(room_messages)")]
-    if "enemy_id" in columns:
-        return
-    conn.execute("ALTER TABLE room_messages ADD COLUMN enemy_id INTEGER")
-    conn.commit()
 
 
 def get_or_create_unassigned_player(conn):
@@ -543,7 +458,7 @@ def to_typed_values(character):
 
 
 enable_wal()
-init_db()
+run_migrations()
 if not load_snapshot_if_needed():
     migrate_csv_if_needed()
 seed_creature_catalog()
