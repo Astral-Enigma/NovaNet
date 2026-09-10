@@ -1,6 +1,6 @@
 # NovaNet Roadmap
 
-_Last updated: 2026-08-27_
+_Last updated: 2026-09-10_
 
 A top-to-bottom plan for building NovaNet: a web-based roleplaying platform for **Nova**,
 built around DeathHaven University. This roadmap starts from the code that already exists
@@ -16,7 +16,7 @@ This plan is built against the complete ruleset:
 | _Nova: Headmaster's Handbook (Ver 1.2)_ | Character creation, Clans/Traits/Houses, the school year, ranking, the combat framework, death. |
 | _Merchant's Manual_ | Techniques, Bursts, Styles, Transformations, Incantations, the Technique Builder, equipment, forging, and all 11 status effects. |
 | _Creature Catalog_ | Enemy stat formulas, combat rewards, and 17 fully specified creatures. |
-| Original NovaNet design doc | The product vision — forums, messaging, yearbook, discovery. |
+| [NovaNet design doc](https://docs.google.com/document/d/1f3x_VKGHKR-pLXYnk6f00tuxs3_loFIhRrO2aHcFsOg/edit) — **living** | The product vision, and the working To Do list that play surfaces. Kept up to date as the game is played; see Part I.5. |
 
 Nothing in this roadmap is blocked on missing content any more. Every phase below has the
 rules text it needs.
@@ -111,20 +111,39 @@ persisted local fallback.
 
 ---
 
-## Part I.5 — Against the original design doc
+## Part I.5 — Against the NovaNet design doc (living)
 
-The original NovaNet doc set out a vision and four phases. I–III are essentially done. This
-is the full accounting, including the items that had not been carried into the plan until now.
+The design doc is where the vision lives and where needs that come out of play get written
+down first. It changes, so this section is a reconciliation rather than a copy: **re-read
+the doc before planning the next piece of work**, and bring this table back in line with it.
 
-### The opening To Do list
+_Last reconciled against the doc: 2026-09-10._ The doc now calls its first phase **Alpha I**,
+and its To Do list grew by six items after the first multi-player session - the first six
+rows under "From play" below.
 
-| Item | Status |
-| --- | --- |
-| Switch to SQLite | **Done** — shipped in Phase II |
-| Make Rank an enum (restrict to the specified options) | Not done → **Phase 1.2** |
-| Reorganize stats based on word length | **Deferred by decision** — not scheduled |
+### The To Do list
 
-### Phase I — a simple character site
+**From play** — added after the first live session. These are the nearest-term work in the
+whole roadmap, because they are what the people using it asked for.
+
+| Item | Status | Where it lands |
+| --- | --- | --- |
+| Ability to add an int to a dice result (e.g. +2) | Not started | **Near term** (Part III). The Handbook adds a skill as a flat bonus to the d20 or the d6, so this is the manual version of that. Rooms first; Phase 7 later applies it automatically. |
+| Ability to send messages without signing in, for the HM | Not started | **Near term.** Read as: the HM can post narration in a room without joining as a character, the way running enemies already works. *To confirm* - "without signing in" could mean something else. |
+| Ability to see sheet/stats in room | Not started | **Near term.** Your character's sheet beside the log. Trauma and Pneuma as current / limit are now real columns (migration 002), which this depends on. |
+| Drop down for character creation | **Partly done** — Rank is a list now | **Phase 1.4–1.6.** Clan, House and Trait are still free text; making them lists is the first step of making them mechanics. |
+| Health for players and enemies | Players: groundwork done. Enemies: not started | **Near term, then Phase 7.** Player Trauma is tracked against its limit as of migration 002. Enemies have no Trauma at all, and the Creature Catalog gives none - see the open question below. |
+| Play section split in two | Not started | *Needs clarifying.* Most likely the room page split into two panes, the log on one side and the sheet and controls on the other, which would pair with "see sheet/stats in room". |
+
+**From the start of the project**
+
+| Item | Status | Where it lands |
+| --- | --- | --- |
+| Make Rank an enum (restrict to the specified options) | **Done** — migration 002 | Phase 1.2. Existing free-text ranks were normalised ('  novice' and '1' both read as Novice). |
+| Switch to SQLite | **Done** — shipped in Phase II | |
+| Reorganize stats based on word length | **Deferred by decision** | Still listed in the doc, so worth a second look when the sheet is next reworked. |
+
+### Alpha I — a simple character site (the doc's "Phase I")
 
 | Item | Status |
 | --- | --- |
@@ -213,6 +232,12 @@ run in parallel. 7 is the payoff. 8 is the biggest. 9–10 are the platform.
 
 ### Phase 0 — Make the codebase able to hold the rest of this
 
+**Done.** `main.py` went from 2,053 lines to routes and app setup, with `config`, `db`,
+`seed`, `queries`, `views`, `guards`, `rules` and `render` around it; templates are Jinja
+with autoescaping; schema changes are numbered migrations; and the test fixture reloads
+the app modules per test so each gets its own database. The notes below are the original
+plan, kept for the reasoning.
+
 **Why first:** the manuals roughly quintuple the app's scope. A single 950-line file with
 string-concatenated HTML, no tests, and ad-hoc `migrate_*_if_needed()` helpers will not
 survive Phase 4's technique engine, let alone Phase 7's combat state machine.
@@ -239,6 +264,18 @@ survive Phase 4's technique engine, let alone Phase 7's combat state machine.
 ### Phase 1 — A character sheet true to the Handbook
 
 **Depends on:** Phase 0's migration system.
+
+**In progress.** Done in migration 002: Trauma and Pneuma as current values against a limit
+(1.1), Rank as one of the six with its AP thresholds (1.2), and Academy Points and Zel (part
+of 1.3). Still to do: the rest of 1.3 (status, House reputation, morality), Clans, Traits
+and Houses as mechanics (1.4-1.6), the creation wizard (1.7), and Quirks, Curses and Talents
+(1.8).
+
+Worth knowing when this is picked back up: the columns stayed named `trauma` and `pneuma`
+for the current values, with `trauma_limit` and `pneuma_limit` beside them, rather than the
+`trauma_current` naming sketched below. And a backup is restored at the schema it was
+exported from and then migrated, so every later migration here transforms restored data
+for free - but only if it is written as a migration rather than as a one-off fix.
 
 The highest-value phase in the document. Nothing downstream is correct until the sheet
 models what the Handbook actually says.
@@ -830,8 +867,23 @@ A track running alongside Phase 3 onward, not a final gate.
 
 ## Part III — Sequencing
 
-1. **Phase 0** — refactor, templates, migrations, tests. Everything after is cheaper.
-2. **Phase 1** — a truthful character sheet. Highest value in the document.
+### Near term: what the first live session asked for
+
+Before resuming Phase 1, the To Do items that came out of play (Part I.5). They are small,
+they are what people using the site asked for, and most sit on work that just landed:
+
+1. **A modifier on dice rolls** (+2) in rooms - small and self-contained.
+2. **HM narration in rooms** without joining as a character.
+3. **The character sheet visible in a room**, showing Trauma and Pneuma against their limits.
+4. **Health for enemies** - needs the rule decided first (see open questions).
+5. **Splitting the Play section** - once it is clear what is meant.
+
+Then **Dropdowns for character creation** folds naturally into resuming Phase 1 at 1.4.
+
+### The phases
+
+1. **Phase 0** — refactor, templates, migrations, tests. **Done.**
+2. **Phase 1** — a truthful character sheet. Highest value in the document. **In progress.**
 3. **Phase 2** — passwords and the admin/HM split.
 4. **Phase 3** — campaigns, the structural backbone.
 5. **Phases 4, 5, 6 in parallel** — the rules content layer. Phase 6 is the smallest and
@@ -851,6 +903,15 @@ campaigns, the economy, or the school clock. If an Instant Link works correctly 
 duel, everything else is filling in tables.
 
 ### Open questions
+
+- **How much Trauma does an enemy have?** The Creature Catalog gives creatures skills,
+  Talents and drops but never a Trauma Limit, yet says enemies "use the same combat, Trait,
+  and rank systems as players". The natural reading is the player rule at the creature's
+  Threat Level - 15, plus 3 for each rank above Novice - but it is a rules call, not a
+  code one, so it wants confirming before enemy health is built.
+- **What does "Play section split in two" mean?** See Part I.5.
+- **"Send messages without signing in, for the HM"** - read here as posting without joining
+  a room as a character. If it means something else, the near-term plan changes.
 
 - **How much does the app enforce vs. record?** The Handbook says outright that "a unanimous
   decision trumps the rulebook," and both manuals repeatedly say "at HM's discretion."
