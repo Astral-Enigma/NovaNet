@@ -13,8 +13,20 @@ import pytest
 
 REPO_ROOT = Path(__file__).resolve().parent.parent
 APP_DIR = REPO_ROOT / "nova-blank" / "character"
-# Reloaded per test so each picks up its own NOVANET_DATA_DIR.
-APP_MODULES = {"config", "db", "seed", "queries", "views", "rules", "render"}
+
+
+def _drop_app_modules():
+    """Forget every module that lives in the app directory.
+
+    They read NOVANET_DATA_DIR at import and bind names from each other, so a cached one
+    would hand the next test the previous test's database. Derived from where a module's
+    file actually is rather than a hand-written list, because a list goes stale the moment
+    a module is added - which is exactly how guards.py slipped through.
+    """
+    for name, module in list(sys.modules.items()):
+        origin = getattr(getattr(module, "__spec__", None), "origin", None)
+        if origin and Path(origin).parent == APP_DIR:
+            del sys.modules[name]
 
 
 @pytest.fixture
@@ -30,9 +42,10 @@ def app_module(tmp_path, monkeypatch):
 
     # Those siblings read NOVANET_DATA_DIR at import. Python caches modules, so without
     # dropping them first the second test would quietly reuse the first test's directory.
-    for name in list(sys.modules):
-        if name in APP_MODULES or name.startswith("routes"):
-            del sys.modules[name]
+    _drop_app_modules()
+    # Forcing a re-import each test means Python may otherwise serve bytecode cached
+    # from a moment ago, which matters while these modules are being edited.
+    importlib.invalidate_caches()
 
     spec = importlib.util.spec_from_file_location(f"novanet_{tmp_path.name}", APP_DIR / "main.py")
     module = importlib.util.module_from_spec(spec)

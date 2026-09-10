@@ -44,6 +44,15 @@ from db import (
     table_exists,
 )
 from render import esc, js_string, render, safe
+from guards import (
+    can_close_room,
+    can_edit_character,
+    export_token_is_valid,
+    require_hm_login,
+    require_owner_or_hm,
+    require_room_hm,
+    require_room_membership,
+)
 from views import (
     nav_links_for,
     page,
@@ -121,15 +130,6 @@ if not load_snapshot_if_needed():
 seed_creature_catalog()
 
 
-def require_hm_login(request):
-    current_player = get_current_player(request)
-    if current_player is None:
-        return RedirectResponse(url="/login", status_code=303)
-    if not current_player["is_hm"]:
-        raise HTTPException(status_code=403, detail="HM access required")
-    return None
-
-
 def esc(value):
     """Escape a value for interpolation into HTML text or a quoted attribute."""
     return escape("" if value is None else str(value), quote=True)
@@ -160,18 +160,6 @@ async def http_exception_handler(request: Request, exc: StarletteHTTPException):
         status_code=exc.status_code,
         headers=getattr(exc, "headers", None),
     )
-
-
-def export_token_is_valid(supplied):
-    """Allow the backup script in without a browser session.
-
-    Only works when NOVANET_EXPORT_TOKEN is configured, so an unset variable can never be
-    matched by an empty query parameter.
-    """
-    expected = os.environ.get("NOVANET_EXPORT_TOKEN", "")
-    if not expected or not supplied:
-        return False
-    return secrets.compare_digest(str(supplied), expected)
 
 
 @app.get("/export/characters.csv")
@@ -300,18 +288,6 @@ def player_profile(id: int, request: Request):
         raise HTTPException(status_code=404, detail="Player not found")
     rows = "".join(render_character_row(c, False) for c in read_characters_for_player(id))
     return page(request, "player_profile.html", name=player["name"], rows=safe(rows))
-
-
-def require_owner_or_hm(current_player, character):
-    if current_player["id"] != character["player_id"] and not current_player["is_hm"]:
-        raise HTTPException(status_code=403, detail="Not permitted to modify this character")
-
-
-def can_edit_character(request, character):
-    current_player = get_current_player(request)
-    return current_player is not None and (
-        current_player["id"] == character["player_id"] or current_player["is_hm"]
-    )
 
 
 @app.get("/character/{id}/techniques", response_class=HTMLResponse)
@@ -775,48 +751,6 @@ def room_messages_fragment(id: int):
     if read_room(id) is None:
         raise HTTPException(status_code=404, detail="Room not found")
     return render_room_messages(read_room_messages(id))
-
-
-def require_room_membership(id, request, allow_closed=False):
-    """Return (room, character) for a caller allowed to act in this room."""
-    room = read_room(id)
-    if room is None:
-        raise HTTPException(status_code=404, detail="Room not found")
-    if room["closed_at"] and not allow_closed:
-        raise HTTPException(status_code=403, detail="This room is closed.")
-    current_player = get_current_player(request)
-    if current_player is None:
-        return None, None
-    character = character_in_room(id, current_player["id"])
-    if character is None:
-        raise HTTPException(status_code=403, detail="Join this room as a character first")
-    return room, character
-
-
-def can_close_room(room, current_player):
-    """Only whoever opened the room, or an HM, may close or reopen it."""
-    if current_player is None:
-        return False
-    return room["created_by"] == current_player["id"] or bool(current_player["is_hm"])
-
-
-def require_room_hm(id, request):
-    """Return (room, player) for an HM acting in an open room.
-
-    Running enemies is the HM's job rather than a character's, so this deliberately does
-    not require them to have joined the room as one.
-    """
-    room = read_room(id)
-    if room is None:
-        raise HTTPException(status_code=404, detail="Room not found")
-    current_player = get_current_player(request)
-    if current_player is None:
-        return None, None
-    if not current_player["is_hm"]:
-        raise HTTPException(status_code=403, detail="Only the Headmaster can run enemies.")
-    if room["closed_at"]:
-        raise HTTPException(status_code=403, detail="This room is closed.")
-    return room, current_player
 
 
 @app.post("/play/room/{id}/enemy")
