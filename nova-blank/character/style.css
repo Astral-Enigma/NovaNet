@@ -151,7 +151,9 @@ nav {
   letter-spacing: .10em;
   text-transform: uppercase;
   text-decoration: none;
-  border-bottom: 2px solid var(--accent);
+  /* Transparent rather than none, so the rule appearing on hover does not shift the
+     text by two pixels. */
+  border-bottom: 2px solid transparent;
   background: none;
   border-left: none;
   border-right: none;
