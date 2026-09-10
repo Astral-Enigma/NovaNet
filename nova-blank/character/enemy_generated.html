@@ -1,25 +1,13 @@
-<!DOCTYPE html>
-<html lang="en">
-<head>
-  <meta charset="UTF-8" />
-  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-  <title>Nova: {{ name }} Generated</title>
-  <link rel="stylesheet" href="/style.css" />
-</head>
-<body>
-  <div class="page">
-    <header class="brand-header">
-      <h1 class="brand">{{ name }} (Threat Level {{ threat_level }})</h1>
-    </header>
-    <nav>
-      {{ nav }}
-    </nav>
-    <div class="content">
+{% extends "_layout.html" %}
+{% block heading %}{{ name }} (Threat Level {{ threat_level }}){% endblock %}
+{% block content %}
       <h2>Skills</h2>
       <div class="table-wrap">
         <table>
         <tr><th>Skill</th><th>Value</th></tr>
-        {{ stat_rows }}
+{% for skill, value in stats.items() %}
+        <tr><td>{{ skill }}</td><td>{{ value }}</td></tr>
+{% endfor %}
         </table>
       </div>
 
@@ -30,7 +18,4 @@
 
       <h2>Drops</h2>
       <p>{{ drops }}</p>
-    </div>
-  </div>
-</body>
-</html>
+{% endblock %}

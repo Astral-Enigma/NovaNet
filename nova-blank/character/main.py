@@ -22,6 +22,8 @@ from fastapi.responses import HTMLResponse, RedirectResponse, Response
 from starlette.exceptions import HTTPException as StarletteHTTPException
 from starlette.middleware.sessions import SessionMiddleware
 
+from render import esc, js_string, render, safe
+
 from rules import (
     HABITATS,
     MAX_DICE,
@@ -69,23 +71,6 @@ CSV_FILE = Path(__file__).parent / "characters.csv"
 # before snapshots existed.
 SNAPSHOT_FILE = Path(__file__).parent / "seed.json"
 DB_FILE = DATA_DIR / "characters.db"
-HOME_FILE = Path(__file__).parent / "home.html"
-CHARACTER_NEW_FILE = Path(__file__).parent / "character_new.html"
-LIST_FILE = Path(__file__).parent / "characters.html"
-EDIT_FILE = Path(__file__).parent / "edit.html"
-PLAYERS_FILE = Path(__file__).parent / "players.html"
-PLAYER_PROFILE_FILE = Path(__file__).parent / "player_profile.html"
-LOGIN_FILE = Path(__file__).parent / "login.html"
-TECHNIQUES_FILE = Path(__file__).parent / "techniques.html"
-TECHNIQUE_NEW_FILE = Path(__file__).parent / "technique_new.html"
-TECHNIQUE_EDIT_FILE = Path(__file__).parent / "technique_edit.html"
-ENEMIES_FILE = Path(__file__).parent / "enemies.html"
-ENEMY_NEW_FILE = Path(__file__).parent / "enemy_new.html"
-ENEMY_EDIT_FILE = Path(__file__).parent / "enemy_edit.html"
-ENEMY_GENERATED_FILE = Path(__file__).parent / "enemy_generated.html"
-PLAY_FILE = Path(__file__).parent / "play.html"
-ROOM_FILE = Path(__file__).parent / "room.html"
-ERROR_FILE = Path(__file__).parent / "error.html"
 STYLE_FILE = Path(__file__).parent / "style.css"
 FIELDS = ["name", "age", "rank", "clan", "house", "trait", "trauma", "pneuma", "deftness", "handling", "tenacity", "wit", "perception", "composure", "pluck", "potential",]
 NUMERIC_FIELDS = ["age", "trauma", "pneuma", "deftness", "handling", "tenacity", "wit", "perception", "composure", "pluck", "potential"]
@@ -837,8 +822,7 @@ def get_current_player(request):
     return read_player(player_id) if player_id else None
 
 
-def render_nav(request):
-    current_player = get_current_player(request)
+def nav_links_for(current_player):
     links = [
         ("Home", "/"),
         ("Create a Character", "/characters/new"),
@@ -849,17 +833,18 @@ def render_nav(request):
         links.append(("Enemies", "/enemies"))
     links.append(("Play", "/play"))
     links.append(("Nova News Network", "#"))
-    items = "".join(f"<li class='site-section'><a href='{href}' class='section-link'>{label}</a></li>" for label, href in links)
-    if current_player:
-        role = "HM" if current_player["is_hm"] else "Student"
-        auth = (
-            f"<li class='site-section'>Logged in as {esc(current_player['name'])} ({role})</li>"
-            "<li class='site-section'><form method='post' action='/logout' style='display:inline'>"
-            "<button type='submit' class='section-link'>Logout</button></form></li>"
-        )
-    else:
-        auth = "<li class='site-section'><a href='/login' class='section-link'>Login</a></li>"
-    return f"<ul class='nav-links'>{items}{auth}</ul>"
+    return links
+
+
+def page(request, template, **context):
+    """Render a page with the chrome every page shares already filled in."""
+    current_player = get_current_player(request)
+    return render(
+        template,
+        current_player=current_player,
+        nav_links=nav_links_for(current_player),
+        **context,
+    )
 
 
 def esc(value):
@@ -898,15 +883,16 @@ def render_player_options(players, selected_id=None):
 
 def render_error_page(request, status, detail):
     try:
-        nav = render_nav(request)
+        current_player = get_current_player(request)
     except Exception:
-        # Never let a failure while rendering the nav mask the original error.
-        nav = ""
-    return (
-        ERROR_FILE.read_text()
-        .replace("{{ status }}", esc(status))
-        .replace("{{ detail }}", esc(detail))
-        .replace("{{ nav }}", nav)
+        # Never let a failure while looking up the session mask the original error.
+        current_player = None
+    return render(
+        "error.html",
+        status=status,
+        detail=detail,
+        current_player=current_player,
+        nav_links=nav_links_for(current_player),
     )
 
 
@@ -1001,37 +987,30 @@ def style():
 
 @app.get("/", response_class=HTMLResponse)
 def index(request: Request):
-    nav = render_nav(request)
-    return HOME_FILE.read_text().replace("{{ nav }}", nav)
+    return page(request, "home.html")
 
 
 @app.get("/characters/new", response_class=HTMLResponse)
 def new_character_form(request: Request):
     if get_current_player(request) is None:
         return RedirectResponse(url="/login", status_code=303)
-    nav = render_nav(request)
-    return CHARACTER_NEW_FILE.read_text().replace("{{ nav }}", nav)
+    return page(request, "character_new.html")
 
 
 @app.get("/characters", response_class=HTMLResponse)
 def character_list(request: Request):
     rows = "".join(render_character_row(c, True) for c in read_characters())
-    nav = render_nav(request)
-    return LIST_FILE.read_text().replace("{{ rows }}", rows).replace("{{ nav }}", nav)
+    return page(request, "characters.html", rows=safe(rows))
 
 
 @app.get("/players", response_class=HTMLResponse)
 def player_list(request: Request):
-    rows = "".join(f"<tr><td><a href='/player/{p['id']}'>{esc(p['name'])}</a></td></tr>" for p in read_players())
-    nav = render_nav(request)
-    return PLAYERS_FILE.read_text().replace("{{ rows }}", rows).replace("{{ nav }}", nav)
+    return page(request, "players.html", players=read_players())
 
 
 @app.get("/login", response_class=HTMLResponse)
 def login_form(request: Request):
-    options = render_player_options(read_players())
-    nav = render_nav(request)
-    return LOGIN_FILE.read_text().replace("{{ player_options }}", options).replace("{{ nav }}", nav)
+    return page(request, "login.html", players=read_players())
 
 
 @app.post("/login")
@@ -1071,13 +1050,7 @@ def player_profile(id: int, request: Request):
     if player is None:
         raise HTTPException(status_code=404, detail="Player not found")
     rows = "".join(render_character_row(c, False) for c in read_characters_for_player(id))
-    nav = render_nav(request)
-    return (
-        PLAYER_PROFILE_FILE.read_text()
-        .replace("{{ name }}", esc(player["name"]))
-        .replace("{{ rows }}", rows)
-        .replace("{{ nav }}", nav)
-    )
+    return page(request, "player_profile.html", name=player["name"], rows=safe(rows))
 
 
 def require_owner_or_hm(current_player, character):
@@ -1102,15 +1075,8 @@ def technique_list(id: int, request: Request):
         f"<p><a href='/character/{id}/techniques/new'>Add Technique</a></p>"
         if can_edit_character(request, character) else ""
     )
-    nav = render_nav(request)
-    return (
-        TECHNIQUES_FILE.read_text()
-        .replace("{{ character_name }}", esc(character["name"]))
-        .replace("{{ id }}", str(id))
-        .replace("{{ rows }}", rows)
-        .replace("{{ add_link }}", add_link)
-        .replace("{{ nav }}", nav)
-    )
+    return page(request, "techniques.html", character_name=character["name"], id=id,
+                rows=safe(rows), add_link=safe(add_link))
 
 
 @app.get("/character/{id}/techniques/new", response_class=HTMLResponse)
@@ -1122,13 +1088,7 @@ def new_technique_form(id: int, request: Request):
     if current_player is None:
         return RedirectResponse(url="/login", status_code=303)
     require_owner_or_hm(current_player, character)
-    nav = render_nav(request)
-    return (
-        TECHNIQUE_NEW_FILE.read_text()
-        .replace("{{ id }}", str(id))
-        .replace("{{ character_name }}", esc(character["name"]))
-        .replace("{{ nav }}", nav)
-    )
+    return page(request, "technique_new.html", id=id, character_name=character["name"])
 
 
 @app.post("/character/{id}/techniques")
@@ -1167,17 +1127,9 @@ def edit_technique_form(id: int, request: Request):
     if current_player is None:
         return RedirectResponse(url="/login", status_code=303)
     require_owner_or_hm(current_player, character)
-    nav = render_nav(request)
-    html = (
-        TECHNIQUE_EDIT_FILE.read_text()
-        .replace("{{ id }}", str(id))
-        .replace("{{ character_id }}", str(character["id"]))
-        .replace("{{ character_name }}", esc(character["name"]))
-        .replace("{{ nav }}", nav)
-    )
-    for f in TECHNIQUE_FIELDS:
-        html = html.replace(f"{{{{ {f} }}}}", esc(technique[f]))
-    return html
+    return page(request, "technique_edit.html", id=id, character_id=character["id"],
+                character_name=character["name"],
+                **{f: technique[f] for f in TECHNIQUE_FIELDS})
 
 
 @app.post("/technique/{id}/edit")
@@ -1241,16 +1193,8 @@ def edit_character_form(id: int, request: Request):
         player_field = f"<label>Player: <select name='player_id' required>{options}</select></label><br />"
     else:
         player_field = ""
-    nav = render_nav(request)
-    html = (
-        EDIT_FILE.read_text()
-        .replace("{{ id }}", str(id))
-        .replace("{{ player_field }}", player_field)
-        .replace("{{ nav }}", nav)
-    )
-    for f in FIELDS:
-        html = html.replace(f"{{{{ {f} }}}}", esc(character[f]))
-    return html
+    return page(request, "edit.html", id=id, player_field=safe(player_field),
+                **{f: character[f] for f in FIELDS})
 
 
 @app.post("/character/{id}/edit")
@@ -1330,8 +1274,7 @@ def enemy_list(request: Request):
     if redirect:
         return redirect
     rows = "".join(render_creature_row(c) for c in read_creatures())
-    nav = render_nav(request)
-    return ENEMIES_FILE.read_text().replace("{{ rows }}", rows).replace("{{ nav }}", nav)
+    return page(request, "enemies.html", rows=safe(rows))
 
 
 @app.get("/enemies/new", response_class=HTMLResponse)
@@ -1339,15 +1282,7 @@ def new_enemy_form(request: Request):
     redirect = require_hm_login(request)
     if redirect:
         return redirect
-    nav = render_nav(request)
-    habitat_options = "".join(f"<option value='{h}'>{h}</option>" for h in HABITATS)
-    skill_options = "".join(f"<option value='{s}'>{s}</option>" for s in SKILLS)
-    return (
-        ENEMY_NEW_FILE.read_text()
-        .replace("{{ habitat_options }}", habitat_options)
-        .replace("{{ skill_options }}", skill_options)
-        .replace("{{ nav }}", nav)
-    )
+    return page(request, "enemy_new.html", habitats=HABITATS, skills=SKILLS)
 
 
 @app.post("/enemy")
@@ -1377,23 +1312,9 @@ def edit_enemy_form(id: int, request: Request):
     creature = read_creature(id)
     if creature is None:
         raise HTTPException(status_code=404, detail="Creature not found")
-    nav = render_nav(request)
-    habitat_options = "".join(
-        f"<option value='{h}'{' selected' if h == creature['habitat'] else ''}>{h}</option>" for h in HABITATS
-    )
-    skill_options = "".join(
-        f"<option value='{s}'{' selected' if s == creature['main_skill'] else ''}>{s}</option>" for s in SKILLS
-    )
-    html = (
-        ENEMY_EDIT_FILE.read_text()
-        .replace("{{ id }}", str(id))
-        .replace("{{ habitat_options }}", habitat_options)
-        .replace("{{ skill_options }}", skill_options)
-        .replace("{{ nav }}", nav)
-    )
-    for f in CREATURE_FIELDS:
-        html = html.replace(f"{{{{ {f} }}}}", esc(creature[f]))
-    return html
+    return page(request, "enemy_edit.html", id=id, habitats=HABITATS, skills=SKILLS,
+                selected_habitat=creature["habitat"], selected_skill=creature["main_skill"],
+                **{f: creature[f] for f in CREATURE_FIELDS})
 
 
 @app.post("/enemy/{id}/edit")
@@ -1444,20 +1365,10 @@ async def generate_enemy(id: int, request: Request):
         threat_level = creature["default_threat_level"]
     threat_level = max(1, min(6, threat_level))
     stats, talent_uses, talent_cooldown = generate_creature_stats(creature, threat_level)
-    stat_rows = "".join(f"<tr><td>{skill}</td><td>{value}</td></tr>" for skill, value in stats.items())
-    nav = render_nav(request)
-    return (
-        ENEMY_GENERATED_FILE.read_text()
-        .replace("{{ name }}", esc(creature["name"]))
-        .replace("{{ threat_level }}", str(threat_level))
-        .replace("{{ stat_rows }}", stat_rows)
-        .replace("{{ talent_name }}", esc(creature["talent_name"]))
-        .replace("{{ talent_effect }}", esc(creature["talent_effect"]))
-        .replace("{{ talent_uses }}", str(talent_uses))
-        .replace("{{ talent_cooldown }}", str(talent_cooldown))
-        .replace("{{ drops }}", esc(creature["drops"]))
-        .replace("{{ nav }}", nav)
-    )
+    return page(request, "enemy_generated.html", name=creature["name"], threat_level=threat_level,
+                stats=stats, talent_name=creature["talent_name"],
+                talent_effect=creature["talent_effect"], talent_uses=talent_uses,
+                talent_cooldown=talent_cooldown, drops=creature["drops"])
 
 
 @app.get("/play", response_class=HTMLResponse)
@@ -1491,12 +1402,7 @@ def play_index(request: Request):
         )
     else:
         create_form = "<p class='quotes'><a href='/login' class='section-link'>Log in to open a room.</a></p>"
-    return (
-        PLAY_FILE.read_text()
-        .replace("{{ rooms }}", table)
-        .replace("{{ create_form }}", create_form)
-        .replace("{{ nav }}", render_nav(request))
-    )
+    return page(request, "play.html", rooms=safe(table), create_form=safe(create_form))
 
 
 @app.post("/play/rooms")
@@ -1608,17 +1514,10 @@ def room_view(id: int, request: Request):
     if not is_closed:
         controls += manage
 
-    return (
-        ROOM_FILE.read_text()
-        .replace("{{ id }}", str(id))
-        .replace("{{ room_name }}", esc(room["name"]))
-        .replace("{{ room_description }}", esc(room["description"]))
-        .replace("{{ member_rows }}", member_rows)
-        .replace("{{ enemy_panel }}", enemy_panel)
-        .replace("{{ controls }}", controls)
-        .replace("{{ messages }}", render_room_messages(read_room_messages(id)))
-        .replace("{{ nav }}", render_nav(request))
-    )
+    return page(request, "room.html", id=id, room_name=room["name"],
+                room_description=room["description"], member_rows=safe(member_rows),
+                enemy_panel=safe(enemy_panel), controls=safe(controls),
+                messages=safe(render_room_messages(read_room_messages(id))))
 
 
 @app.get("/play/room/{id}/messages", response_class=HTMLResponse)

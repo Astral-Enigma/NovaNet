@@ -1,0 +1,11 @@
+<ul class='nav-links'>
+{% for label, href in nav_links %}
+  <li class='site-section'><a href='{{ href }}' class='section-link'>{{ label }}</a></li>
+{% endfor %}
+{% if current_player %}
+  <li class='site-section'>Logged in as {{ current_player['name'] }} ({{ 'HM' if current_player['is_hm'] else 'Student' }})</li>
+  <li class='site-section'><form method='post' action='/logout' style='display:inline'><button type='submit' class='section-link'>Logout</button></form></li>
+{% else %}
+  <li class='site-section'><a href='/login' class='section-link'>Login</a></li>
+{% endif %}
+</ul>

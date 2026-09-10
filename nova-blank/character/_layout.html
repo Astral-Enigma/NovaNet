@@ -1,0 +1,23 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Nova: {% block title %}{{ self.heading() }}{% endblock %}</title>
+  <link rel="stylesheet" href="/style.css" />
+</head>
+<body>
+  <div class="page">
+    <header class="brand-header">
+      <h1 class="brand">{% block heading %}{% endblock %}</h1>
+    </header>
+    <nav>
+      {% include "_nav.html" %}
+    </nav>
+    <div class="content">
+{% block content %}{% endblock %}
+    </div>
+  </div>
+{% block scripts %}{% endblock %}
+</body>
+</html>

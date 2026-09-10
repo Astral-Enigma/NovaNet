@@ -1,20 +1,6 @@
-<!DOCTYPE html>
-<html lang="en">
-<head>
-  <meta charset="UTF-8" />
-  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-  <title>Nova: {{ character_name }} Techniques</title>
-  <link rel="stylesheet" href="/style.css" />
-</head>
-<body>
-  <div class="page">
-    <header class="brand-header">
-      <h1 class="brand">{{ character_name }}'s Techniques</h1>
-    </header>
-    <nav>
-      {{ nav }}
-    </nav>
-    <div class="content">
+{% extends "_layout.html" %}
+{% block heading %}{{ character_name }}'s Techniques{% endblock %}
+{% block content %}
       {{ add_link }}
       <div class="table-wrap">
         <table>
@@ -23,7 +9,4 @@
         </table>
       </div>
       <p><a href="/character/{{ id }}/edit" class="section-link">Back to Character</a></p>
-    </div>
-  </div>
-</body>
-</html>
+{% endblock %}

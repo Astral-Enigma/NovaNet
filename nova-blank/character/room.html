@@ -1,20 +1,6 @@
-<!DOCTYPE html>
-<html lang="en">
-<head>
-  <meta charset="UTF-8" />
-  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-  <title>Nova: {{ room_name }}</title>
-  <link rel="stylesheet" href="/style.css" />
-</head>
-<body>
-  <div class="page">
-    <header class="brand-header">
-      <h1 class="brand">{{ room_name }}</h1>
-    </header>
-    <nav>
-      {{ nav }}
-    </nav>
-    <div class="content">
+{% extends "_layout.html" %}
+{% block heading %}{{ room_name }}{% endblock %}
+{% block content %}
       <p class="quotes">{{ room_description }}</p>
 
       <h2>In the room</h2>
@@ -35,9 +21,8 @@
       {{ controls }}
 
       <p><a href="/play" class="section-link">&larr; Back to all rooms</a></p>
-    </div>
-  </div>
-
+{% endblock %}
+{% block scripts %}
   <script>
     // Poll the log so a room stays live without anyone refreshing. The fragment endpoint
     // returns only the messages, so typing in the message box is never interrupted.
@@ -59,5 +44,4 @@
       }, 4000);
     })();
   </script>
-</body>
-</html>
+{% endblock %}

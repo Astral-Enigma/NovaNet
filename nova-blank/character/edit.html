@@ -1,20 +1,6 @@
-<!DOCTYPE html>
-<html lang="en">
-<head>
-  <meta charset="UTF-8" />
-  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-  <title>Nova: Edit Character</title>
-  <link rel="stylesheet" href="/style.css" />
-</head>
-<body>
-  <div class="page">
-    <header class="brand-header">
-      <h1 class="brand">Edit Character</h1>
-    </header>
-    <nav>
-      {{ nav }}
-    </nav>
-    <div class="content">
+{% extends "_layout.html" %}
+{% block heading %}Edit Character{% endblock %}
+{% block content %}
       <form method="post" action="/character/{{ id }}/edit">
         {{ player_field }}
         <label>Name: <input type="text" name="name" value="{{ name }}" required /></label>
@@ -37,7 +23,4 @@
         <a href="/character/{{ id }}/techniques" class="section-link">Techniques</a>
         <a href="/characters" class="section-link">Cancel</a>
       </form>
-    </div>
-  </div>
-</body>
-</html>
+{% endblock %}

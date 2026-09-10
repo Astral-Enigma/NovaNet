@@ -273,6 +273,52 @@ class TestCreatureCatalog:
         assert names == ["Homebrew"]
 
 
+class TestPagesRender:
+    """Every page, fetched. A template that fails to render is a 500, and several of these
+    routes had no coverage at all until a Jinja conversion broke one of them silently."""
+
+    def _hm_with_content(self, client, app_module):
+        client.post("/enroll", data={"name": "Head", "is_hm": "1"}, follow_redirects=False)
+        cid = make_character(client, "Ryn", rank="Genius")
+        client.post(f"/character/{cid}/techniques", data={
+            "name": "Spirit Shot", "description": "a blast", "toll": "2",
+            "type": "Pneumatic/Composure", "category": "Offensive", "effect": "Keep 1 more",
+            "burst": "status", "duration": "0"}, follow_redirects=False)
+        client.post("/play/rooms", data={"name": "The Pit", "description": "sparring"},
+                    follow_redirects=False)
+        client.post("/play/room/1/join", data={"character_id": str(cid)}, follow_redirects=False)
+        conn = app_module.get_connection()
+        creature = conn.execute("SELECT id FROM creatures LIMIT 1").fetchone()["id"]
+        technique = conn.execute("SELECT id FROM techniques LIMIT 1").fetchone()["id"]
+        player = conn.execute("SELECT id FROM players WHERE is_hm = 1").fetchone()["id"]
+        conn.close()
+        return cid, creature, technique, player
+
+    def test_every_get_page_renders(self, client, app_module):
+        cid, creature, technique, player = self._hm_with_content(client, app_module)
+        for path in [
+            "/", "/characters", "/characters/new", "/players", f"/player/{player}",
+            "/login", "/enemies", "/enemies/new", f"/enemy/{creature}/edit",
+            f"/character/{cid}/edit", f"/character/{cid}/techniques",
+            f"/character/{cid}/techniques/new", f"/technique/{technique}/edit",
+            "/play", "/play/room/1",
+        ]:
+            response = client.get(path)
+            assert response.status_code == 200, f"{path} returned {response.status_code}"
+            assert "<html lang=\"en\">" in response.text, f"{path} did not render the layout"
+
+    def test_generated_enemy_page_renders(self, client, app_module):
+        """This one had no test, so a Jinja conversion left a dead render_nav call behind
+        and the whole route 500'd without the suite noticing."""
+        _cid, creature, _t, _p = self._hm_with_content(client, app_module)
+        response = client.post(f"/enemy/{creature}/generate", data={"threat_level": "4"},
+                               follow_redirects=False)
+        assert response.status_code == 200
+        assert "Threat Level 4" in response.text
+        for skill in app_module.SKILLS:
+            assert skill in response.text
+
+
 class TestRoomEnemies:
     def _hm_room(self, client):
         client.post("/enroll", data={"name": "Head", "is_hm": "1"}, follow_redirects=False)

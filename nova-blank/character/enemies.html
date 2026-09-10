@@ -1,27 +1,10 @@
-<!DOCTYPE html>
-<html lang="en">
-<head>
-  <meta charset="UTF-8" />
-  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-  <title>Nova: Enemies</title>
-  <link rel="stylesheet" href="/style.css" />
-</head>
-<body>
-  <div class="page">
-    <header class="brand-header">
-      <h1 class="brand">Enemies</h1>
-    </header>
-    <nav>
-      {{ nav }}
-    </nav>
-    <div class="content">
+{% extends "_layout.html" %}
+{% block heading %}Enemies{% endblock %}
+{% block content %}
       <div class="table-wrap">
         <table>
         <tr><th>Name</th><th>Description</th><th>Habitat</th><th>Main Skill</th><th>Default Threat Level</th><th>Talent Name</th><th>Talent Effect</th><th>Drops</th><th>Generate</th><th>Edit</th><th>Delete</th></tr>
         {{ rows }}
         </table>
       </div>
-    </div>
-  </div>
-</body>
-</html>
+{% endblock %}

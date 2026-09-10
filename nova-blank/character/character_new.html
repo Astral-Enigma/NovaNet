@@ -1,20 +1,6 @@
-<!DOCTYPE html>
-<html lang="en">
-<head>
-  <meta charset="UTF-8" />
-  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-  <title>Nova: New Character</title>
-  <link rel="stylesheet" href="/style.css" />
-</head>
-<body>
-  <div class="page">
-    <header class="brand-header">
-      <h1 class="brand">New Character</h1>
-    </header>
-    <nav>
-      {{ nav }}
-    </nav>
-    <div class="content">
+{% extends "_layout.html" %}
+{% block heading %}New Character{% endblock %}
+{% block content %}
       <form method="post" action="/character">
         <label>Name: <input type="text" name="name" required /></label>
         <label>Age: <input type="number" name="age" required /></label>
@@ -34,7 +20,4 @@
         <label>Potential: <input type="number" name="potential" value="0" readonly /></label>
         <button type="submit">Add Character</button>
       </form>
-    </div>
-  </div>
-</body>
-</html>
+{% endblock %}

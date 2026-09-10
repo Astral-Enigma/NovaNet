@@ -1,20 +1,6 @@
-<!DOCTYPE html>
-<html lang="en">
-<head>
-  <meta charset="UTF-8" />
-  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-  <title>Nova: Edit Technique</title>
-  <link rel="stylesheet" href="/style.css" />
-</head>
-<body>
-  <div class="page">
-    <header class="brand-header">
-      <h1 class="brand">Edit Technique for {{ character_name }}</h1>
-    </header>
-    <nav>
-      {{ nav }}
-    </nav>
-    <div class="content">
+{% extends "_layout.html" %}
+{% block heading %}Edit Technique for {{ character_name }}{% endblock %}
+{% block content %}
       <form method="post" action="/technique/{{ id }}/edit">
         <label>Name: <input type="text" name="name" value="{{ name }}" required /></label>
         <label>Description: <input type="text" name="description" value="{{ description }}" required /></label>
@@ -27,7 +13,4 @@
         <button type="submit">Save</button>
         <a href="/character/{{ character_id }}/techniques" class="section-link">Cancel</a>
       </form>
-    </div>
-  </div>
-</body>
-</html>
+{% endblock %}
