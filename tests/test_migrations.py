@@ -67,7 +67,7 @@ class TestLegacyDatabase:
     """A database from before migrations must be baselined, never rebuilt."""
 
     def _legacy(self, app_module):
-        conn = sqlite3.connect(app_module.DB_FILE)
+        conn = sqlite3.connect(app_module.config.DB_FILE)
         conn.executescript(LEGACY_SCHEMA)
         conn.commit()
         conn.close()
@@ -157,7 +157,7 @@ class TestRunner:
             "CREATE TABLE IF NOT EXISTS schema_version (version INTEGER NOT NULL);")
         (migrations / "002_add_thing.sql").write_text(
             "CREATE TABLE IF NOT EXISTS a_new_thing (id INTEGER PRIMARY KEY, label TEXT);")
-        monkeypatch.setattr(app_module, "MIGRATIONS_DIR", migrations)
+        monkeypatch.setattr(app_module.config, "MIGRATIONS_DIR", migrations)
 
         assert app_module.run_migrations() == 2
 
@@ -172,5 +172,5 @@ class TestRunner:
         migrations = tmp_path / "migrations"
         migrations.mkdir()
         (migrations / "notes.sql").write_text("SELECT 1;")
-        monkeypatch.setattr(app_module, "MIGRATIONS_DIR", migrations)
+        monkeypatch.setattr(app_module.config, "MIGRATIONS_DIR", migrations)
         assert app_module.pending_migrations(0) == []

@@ -13,6 +13,8 @@ import pytest
 
 REPO_ROOT = Path(__file__).resolve().parent.parent
 APP_DIR = REPO_ROOT / "nova-blank" / "character"
+# Reloaded per test so each picks up its own NOVANET_DATA_DIR.
+APP_MODULES = {"config", "db", "seed", "queries", "views", "rules", "render"}
 
 
 @pytest.fixture
@@ -26,6 +28,12 @@ def app_module(tmp_path, monkeypatch):
     if str(APP_DIR) not in sys.path:
         sys.path.insert(0, str(APP_DIR))
 
+    # Those siblings read NOVANET_DATA_DIR at import. Python caches modules, so without
+    # dropping them first the second test would quietly reuse the first test's directory.
+    for name in list(sys.modules):
+        if name in APP_MODULES or name.startswith("routes"):
+            del sys.modules[name]
+
     spec = importlib.util.spec_from_file_location(f"novanet_{tmp_path.name}", APP_DIR / "main.py")
     module = importlib.util.module_from_spec(spec)
     sys.modules[spec.name] = module
@@ -36,8 +44,11 @@ def app_module(tmp_path, monkeypatch):
     # then clear the seeded rows so each test starts from an genuinely empty database.
     seed_copy = tmp_path / "characters.csv"
     seed_copy.write_text("")
-    module.CSV_FILE = seed_copy
-    module.SNAPSHOT_FILE = tmp_path / "seed.json"
+    # Repoint on config, which is where the modules that read these look, and on the main
+    # module too, because tests reach for app_module.CSV_FILE directly.
+    app_config = sys.modules["config"]
+    app_config.CSV_FILE = module.CSV_FILE = seed_copy
+    app_config.SNAPSHOT_FILE = module.SNAPSHOT_FILE = tmp_path / "seed.json"
 
     # Clear every table the snapshot restores, derived from the app rather than hardcoded:
     # a list written by hand goes stale the moment a table is added, and a stale one let

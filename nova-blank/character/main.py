@@ -22,6 +22,27 @@ from fastapi.responses import HTMLResponse, RedirectResponse, Response
 from starlette.exceptions import HTTPException as StarletteHTTPException
 from starlette.middleware.sessions import SessionMiddleware
 
+import config
+import db
+from config import (
+    CREATURE_FIELDS,
+    CSV_COLUMNS,
+    FIELDS,
+    NUMERIC_FIELDS,
+    SNAPSHOT_TABLES,
+    SNAPSHOT_VERSION,
+    TECHNIQUE_FIELDS,
+)
+from db import (
+    applied_schema_version,
+    enable_wal,
+    get_connection,
+    get_or_create_unassigned_player,
+    pending_migrations,
+    run_migrations,
+    table_columns,
+    table_exists,
+)
 from render import esc, js_string, render, safe
 
 from rules import (
@@ -37,176 +58,26 @@ from rules import (
     roll_dice,
 )
 
-# Hosts like Render give each deploy a fresh, empty filesystem, so anything written next to
-# this file is wiped every time the app ships. NOVANET_DATA_DIR points the database and the
-# session secret at a persistent disk instead; it defaults to alongside the code so local
-# development is unchanged.
-DATA_DIR = Path(os.environ.get("NOVANET_DATA_DIR", Path(__file__).parent))
-MIGRATIONS_DIR = Path(__file__).parent / "migrations"
-DATA_DIR.mkdir(parents=True, exist_ok=True)
-SECRET_KEY_FILE = DATA_DIR / "session_secret.txt"
 
 
-def load_session_secret():
-    # A freshly generated secret on every start would log every user out on restart, so
-    # prefer the environment and fall back to a secret persisted next to the database.
-    from_env = os.environ.get("NOVANET_SECRET_KEY")
-    if from_env:
-        return from_env
-    if SECRET_KEY_FILE.exists():
-        stored = SECRET_KEY_FILE.read_text().strip()
-        if stored:
-            return stored
-    generated = secrets.token_hex(32)
-    SECRET_KEY_FILE.write_text(generated)
-    SECRET_KEY_FILE.chmod(0o600)
-    return generated
 
 
 app = FastAPI()
-app.add_middleware(SessionMiddleware, secret_key=load_session_secret())
-
-CSV_FILE = Path(__file__).parent / "characters.csv"
-# The complete backup. characters.csv stays as a legacy fallback for databases seeded
-# before snapshots existed.
-SNAPSHOT_FILE = Path(__file__).parent / "seed.json"
-DB_FILE = DATA_DIR / "characters.db"
-STYLE_FILE = Path(__file__).parent / "style.css"
-FIELDS = ["name", "age", "rank", "clan", "house", "trait", "trauma", "pneuma", "deftness", "handling", "tenacity", "wit", "perception", "composure", "pluck", "potential",]
-NUMERIC_FIELDS = ["age", "trauma", "pneuma", "deftness", "handling", "tenacity", "wit", "perception", "composure", "pluck", "potential"]
-TECHNIQUE_FIELDS = ["name", "description", "toll", "type", "category", "effect", "burst", "duration"]
-CREATURE_FIELDS = ["name", "description", "habitat", "main_skill", "default_threat_level", "talent_name", "talent_effect", "drops"]
+app.add_middleware(SessionMiddleware, secret_key=config.load_session_secret())
 
 
-def get_connection():
-    # busy_timeout and synchronous are per-connection, so they belong here. journal_mode is
-    # a property of the database file itself and is set once in enable_wal(); re-issuing it
-    # per request costs a lock acquisition on every single call.
-    conn = sqlite3.connect(DB_FILE, timeout=30)
-    conn.row_factory = sqlite3.Row
-    conn.execute("PRAGMA busy_timeout=30000")
-    conn.execute("PRAGMA synchronous=NORMAL")
-    return conn
 
-
-def enable_wal():
-    """Switch the database to write-ahead logging, once, at startup.
-
-    Several people share a room and every open page polls the log, so reads and writes
-    overlap constantly. Under the default rollback journal a writer takes an exclusive lock
-    that blocks readers outright. WAL lets readers carry on while one writer works, which is
-    exactly the shape of this traffic.
-    """
-    conn = sqlite3.connect(DB_FILE, timeout=30)
-    try:
-        conn.execute("PRAGMA journal_mode=WAL")
-        conn.commit()
-    finally:
-        conn.close()
-
-
-def table_exists(conn, name):
-    return conn.execute(
-        "SELECT 1 FROM sqlite_master WHERE type='table' AND name = ?", (name,)
-    ).fetchone() is not None
-
-
-def ensure_legacy_columns(conn):
-    """Bring a database created before migrations up to what 001 produces.
-
-    These columns arrived as ALTER TABLE in earlier builds, so an older database has the
-    tables but not the columns, and CREATE TABLE IF NOT EXISTS will not add them. Each check
-    is idempotent, so running this against an already-current database does nothing.
-    """
-    additions = [
-        ("characters", "player_id", "ALTER TABLE characters ADD COLUMN player_id INTEGER"),
-        ("players", "is_hm", "ALTER TABLE players ADD COLUMN is_hm INTEGER NOT NULL DEFAULT 0"),
-        ("rooms", "closed_at", "ALTER TABLE rooms ADD COLUMN closed_at TEXT"),
-        ("room_messages", "enemy_id", "ALTER TABLE room_messages ADD COLUMN enemy_id INTEGER"),
-    ]
-    for table, column, statement in additions:
-        if not table_exists(conn, table):
-            continue
-        columns = [row["name"] for row in conn.execute(f"PRAGMA table_info({table})")]
-        if column in columns:
-            continue
-        conn.execute(statement)
-        if table == "characters" and column == "player_id":
-            unassigned_id = get_or_create_unassigned_player(conn)
-            conn.execute("UPDATE characters SET player_id = ? WHERE player_id IS NULL", (unassigned_id,))
-    conn.commit()
-
-
-def applied_schema_version(conn):
-    """The migration number this database is at, or None if it predates the system."""
-    if not table_exists(conn, "schema_version"):
-        return None
-    row = conn.execute("SELECT version FROM schema_version").fetchone()
-    return row["version"] if row else 0
-
-
-def pending_migrations(version):
-    found = []
-    for path in sorted(MIGRATIONS_DIR.glob("*.sql")):
-        try:
-            number = int(path.name.split("_", 1)[0])
-        except ValueError:
-            continue
-        if number > version:
-            found.append((number, path))
-    return found
-
-
-def run_migrations():
-    """Apply every migration the database has not seen yet.
-
-    A database from before this system already holds the schema 001 describes, so it is
-    baselined rather than rebuilt: 001's CREATE TABLE IF NOT EXISTS statements are no-ops
-    against it, and ensure_legacy_columns fills in the columns an older CREATE lacks.
-    """
-    conn = get_connection()
-    try:
-        version = applied_schema_version(conn)
-        legacy = version is None and table_exists(conn, "players")
-        if version is None:
-            version = 0
-        for number, path in pending_migrations(version):
-            conn.executescript(path.read_text())
-            if legacy:
-                ensure_legacy_columns(conn)
-            conn.execute("DELETE FROM schema_version")
-            conn.execute("INSERT INTO schema_version (version) VALUES (?)", (number,))
-            conn.commit()
-            version = number
-        return version
-    finally:
-        conn.close()
-
-
-def get_or_create_unassigned_player(conn):
-    row = conn.execute("SELECT id FROM players WHERE name = 'Unassigned'").fetchone()
-    if row:
-        return row["id"]
-    cursor = conn.execute("INSERT INTO players (name) VALUES ('Unassigned')")
-    conn.commit()
-    return cursor.lastrowid
-
-
-# The seed CSV carries the owning player alongside each character so that ownership and HM
-# status survive a reseed. Older files without these columns still load; their characters
-# fall back to the Unassigned player.
-CSV_COLUMNS = ["player", "player_is_hm"] + FIELDS
 
 
 def migrate_csv_if_needed():
-    if not CSV_FILE.exists():
+    if not config.CSV_FILE.exists():
         return
     conn = get_connection()
     try:
         count = conn.execute("SELECT COUNT(*) FROM characters").fetchone()[0]
         if count > 0:
             return
-        with open(CSV_FILE, newline="") as f:
+        with open(config.CSV_FILE, newline="") as f:
             rows = list(csv.DictReader(f))
         if not rows:
             return
@@ -321,18 +192,6 @@ def seed_creature_catalog():
         conn.close()
 
 
-# Everything a table creates. characters.csv only ever covered players and characters, so
-# techniques, rooms and their logs were lost on every deploy with no way back. Order matters
-# on restore: a row's referents are loaded before it.
-SNAPSHOT_TABLES = [
-    "players", "characters", "techniques", "creatures",
-    "rooms", "room_enemies", "room_members", "room_messages",
-]
-SNAPSHOT_VERSION = 1
-
-
-def table_columns(conn, table):
-    return [row["name"] for row in conn.execute(f"PRAGMA table_info({table})")]
 
 
 def export_snapshot():
@@ -347,7 +206,7 @@ def export_snapshot():
         conn.close()
     payload = json.dumps(data, indent=1, sort_keys=True)
     try:
-        SNAPSHOT_FILE.write_text(payload)
+        config.SNAPSHOT_FILE.write_text(payload)
     except OSError:
         # A read-only filesystem must not break the app.
         pass
@@ -361,14 +220,14 @@ def load_snapshot_if_needed():
     keeps loading instead of failing outright. Ids are preserved because techniques, room
     membership and the message log all reference them.
     """
-    if not SNAPSHOT_FILE.exists():
+    if not config.SNAPSHOT_FILE.exists():
         return False
     conn = get_connection()
     try:
         if conn.execute("SELECT COUNT(*) FROM players").fetchone()[0] > 0:
             return False
         try:
-            data = json.loads(SNAPSHOT_FILE.read_text())
+            data = json.loads(config.SNAPSHOT_FILE.read_text())
         except (OSError, ValueError):
             return False
         tables = data.get("tables") or {}
@@ -413,7 +272,7 @@ def export_characters_csv():
     finally:
         conn.close()
     try:
-        with open(CSV_FILE, "w", newline="") as f:
+        with open(config.CSV_FILE, "w", newline="") as f:
             writer = csv.DictWriter(f, fieldnames=CSV_COLUMNS)
             writer.writeheader()
             for row in rows:
@@ -931,7 +790,7 @@ def export_csv(request: Request, token: str = ""):
         return RedirectResponse(url="/login", status_code=303)
     export_characters_csv()
     return Response(
-        content=CSV_FILE.read_text() if CSV_FILE.exists() else "",
+        content=config.CSV_FILE.read_text() if config.CSV_FILE.exists() else "",
         media_type="text/csv",
         headers={"Content-Disposition": "attachment; filename=characters.csv"},
     )
@@ -982,7 +841,7 @@ def favicon():
 
 @app.get("/style.css")
 def style():
-    return Response(content=STYLE_FILE.read_text(), media_type="text/css")
+    return Response(content=config.STYLE_FILE.read_text(), media_type="text/css")
 
 
 @app.get("/", response_class=HTMLResponse)
