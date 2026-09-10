@@ -2,8 +2,8 @@
 
 /* ============================================================================
    NovaNet — editorial layout, high-contrast graphic accents.
-   Calm off-white reading surfaces under bold near-black bands, with a single
-   hot accent and angular cuts doing the shouting.
+   Calm off-white reading surfaces under bold near-black bands, with Nova's
+   powderblue and the angular cuts doing the shouting.
    ========================================================================= */
 
 :root {
@@ -17,10 +17,15 @@
   --text:       #1a1a1f;
   --muted:      #6f6b64;
 
-  --accent:     #e8332a;   /* the hot one */
-  --accent-ink: #b3211a;
-  --nova:       #b0dcea;   /* Nova's signature powderblue, kept */
+  /* Powderblue is the accent. It carries on the dark bands, but it is far too pale to
+     read as ink on the off-white surfaces, so anything sitting on light uses --accent-ink
+     and anything that is text on dark uses --nova-soft. */
+  --accent:     #b0dcea;   /* Nova's signature powderblue */
+  --accent-ink: #1f6f88;   /* the same hue, dark enough to read on paper */
+  --nova:       #b0dcea;
+  --nova-soft:  #d9f1fa;   /* bright, for text on the dark log */
   --nova-deep:  #1f6f88;
+  --nova-ink:   #14505f;   /* darker still, for link hover */
 
   --shadow:     0 1px 2px rgba(11,11,14,.06), 0 8px 24px rgba(11,11,14,.06);
   --shadow-lg:  0 2px 4px rgba(11,11,14,.08), 0 18px 48px rgba(11,11,14,.10);
@@ -196,14 +201,14 @@ h2::before {
   display: inline-block;
   width: 12px; height: 12px;
   margin-right: 10px;
-  background: var(--accent);
+  background: var(--accent-ink);
   transform: rotate(45deg) translateY(-1px);
 }
 
 .content > h2:first-child { margin-top: 0; }
 
 a { color: var(--nova-deep); text-decoration-thickness: 1px; text-underline-offset: 2px; }
-a:hover { color: var(--accent); }
+a:hover { color: var(--nova-ink); }
 
 /* ---------- Tables -------------------------------------------------------- */
 
@@ -294,7 +299,7 @@ select {
 input:focus, select:focus {
   outline: none;
   border-color: var(--ink);
-  box-shadow: 0 0 0 3px rgba(232,51,42,.14);
+  box-shadow: 0 0 0 3px rgba(31,111,136,.18);
 }
 
 input[readonly] { background: #f0eeea; color: var(--muted); }
@@ -303,7 +308,7 @@ input[type="checkbox"] {
   display: inline-block;
   width: auto;
   margin-right: 8px;
-  accent-color: var(--accent);
+  accent-color: var(--accent-ink);
   vertical-align: middle;
 }
 
@@ -324,7 +329,7 @@ button, input[type="submit"] {
   transition: background .15s ease, transform .08s ease;
 }
 
-button:hover, input[type="submit"]:hover { background: var(--accent); }
+button:hover, input[type="submit"]:hover { background: var(--accent); color: var(--ink); }
 button:active { transform: translateY(1px); }
 
 /* destructive-ish actions inside table rows stay quiet until hovered */
@@ -336,7 +341,7 @@ td form button {
   border: 1px solid var(--line-2);
   clip-path: none;
 }
-td form button:hover { background: var(--accent); color: #fff; border-color: var(--accent); }
+td form button:hover { background: var(--accent); color: var(--ink); border-color: var(--accent-ink); }
 
 /* a form that is really a row of controls */
 .control-row {
@@ -400,10 +405,10 @@ td form button:hover { background: var(--accent); color: #fff; border-color: var
 .log-text strong { color: var(--nova); font-weight: 600; }
 
 .log-roll {
-  background: rgba(232,51,42,.09);
+  background: rgba(176,220,234,.10);
   border-left-color: var(--accent) !important;
 }
-.log-roll strong { color: #ff8d86; }
+.log-roll strong { color: var(--nova-soft); }
 
 .log-system {
   color: #8a8794;
