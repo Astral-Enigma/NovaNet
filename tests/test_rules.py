@@ -1,5 +1,7 @@
 """Rules-engine invariants drawn straight from the Nova manuals."""
 
+import json
+
 import pytest
 
 from conftest import make_character
@@ -65,13 +67,29 @@ class TestDice:
 
 class TestEscaping:
     def test_html_is_escaped(self, app_module):
-        assert app_module.esc("<script>") == "&lt;script&gt;"
-        assert "&#x27;" in app_module.esc("it's")
+        """Checks the property that matters - nothing that can open a tag or close an
+        attribute survives - rather than which entity spelling the library chooses."""
+        out = app_module.esc("<script>it's \"quoted\"</script>")
+        for dangerous in ("<", ">", "'", '"'):
+            assert dangerous not in out, f"{dangerous!r} survived escaping: {out}"
 
     def test_js_string_survives_a_breakout_attempt(self, app_module):
+        import html
         out = app_module.js_string("Bob');alert('x")
-        assert "');" not in out
-        assert out.startswith("&quot;") and out.endswith("&quot;")
+        # No raw quote may close the surrounding double-quoted attribute...
+        assert '"' not in out and "'" not in out
+        # ...and once the browser decodes the attribute, what JavaScript sees is a single
+        # JSON string literal with the apostrophes still inside it.
+        decoded = html.unescape(out)
+        assert json.loads(decoded) == "Bob');alert('x", \
+            "must decode to exactly one string literal holding the original text"
+
+    def test_views_and_main_escape_with_the_same_function(self, app_module):
+        """main.py once carried its own esc() that shadowed the real one, so the tests above
+        were checking a copy that never rendered a page."""
+        import sys
+        assert app_module.esc is sys.modules["render"].esc
+        assert sys.modules["views"].esc is sys.modules["render"].esc
 
     def test_stored_xss_is_not_served_back(self, player):
         make_character(player, "<script>alert(1)</script>")

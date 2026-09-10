@@ -10,8 +10,16 @@ import json
 
 import config
 from config import CREATURE_FIELDS, CSV_COLUMNS, FIELDS, NUMERIC_FIELDS, SNAPSHOT_TABLES, SNAPSHOT_VERSION
-from db import get_connection, get_or_create_unassigned_player, table_columns
+from db import (
+    applied_schema_version,
+    get_connection,
+    get_or_create_unassigned_player,
+    run_migrations,
+    table_columns,
+    table_exists,
+)
 from queries import utc_now
+from rules import normalize_rank, starting_limits
 
 # The Creature Catalog is published reference material rather than anything a table
 # creates, so it ships with the app. Seeding it here means enemy generation still works
@@ -78,6 +86,30 @@ CATALOG_SEED = [
 ]
 
 
+def upgrade_version_1_character(row):
+    """Bring a character exported before migration 002 up to what 002 makes of it.
+
+    Migration 002 does this in SQL to rows already in a database. A CSV exported before it
+    arrives after the migrations have run, so it needs the same treatment here:
+    tests/test_character_sheet.py checks the two agree, since two copies of one rule is
+    exactly how they drift.
+    """
+    def as_int(key):
+        try:
+            return int(row.get(key) or 0)
+        except (TypeError, ValueError):
+            return 0
+
+    rank = normalize_rank(row.get("rank"))
+    trauma_default, pneuma_default = starting_limits(rank)
+    trauma_limit = as_int("trauma") if as_int("trauma") > 0 else trauma_default
+    pneuma_limit = as_int("pneuma") if as_int("pneuma") > 0 else pneuma_default
+    upgraded = dict(row)
+    upgraded.update(rank=rank, trauma=0, trauma_limit=trauma_limit,
+                    pneuma=pneuma_limit, pneuma_limit=pneuma_limit)
+    return upgraded
+
+
 def migrate_csv_if_needed():
     if not config.CSV_FILE.exists():
         return
@@ -87,7 +119,11 @@ def migrate_csv_if_needed():
         if count > 0:
             return
         with open(config.CSV_FILE, newline="") as f:
-            rows = list(csv.DictReader(f))
+            reader = csv.DictReader(f)
+            rows = list(reader)
+            # A file without the limit columns predates migration 002, so its trauma and
+            # pneuma numbers are really limits.
+            version_1 = "trauma_limit" not in (reader.fieldnames or [])
         if not rows:
             return
         player_ids = {}
@@ -109,7 +145,7 @@ def migrate_csv_if_needed():
                         "INSERT INTO players (name, is_hm) VALUES (?, ?)", (player_name, is_hm)
                     ).lastrowid
                 player_ids[player_name] = player_id
-            values = to_typed_values(row)
+            values = to_typed_values(upgrade_version_1_character(row) if version_1 else row)
             conn.execute(
                 f"INSERT INTO characters (player_id, {', '.join(FIELDS)}) "
                 f"VALUES (?, {', '.join('?' for _ in FIELDS)})",
@@ -140,7 +176,15 @@ def export_snapshot():
     """Write every table to seed.json, the file the app reloads from on an empty database."""
     conn = get_connection()
     try:
-        data = {"version": SNAPSHOT_VERSION, "exported_at": utc_now(), "tables": {}}
+        data = {
+            "version": SNAPSHOT_VERSION,
+            # Which migration the rows were exported at. Restoring puts them back at that
+            # schema and lets the remaining migrations transform them, so a backup taken
+            # before a schema change still comes back right after it.
+            "schema_version": applied_schema_version(conn),
+            "exported_at": utc_now(),
+            "tables": {},
+        }
         for table in SNAPSHOT_TABLES:
             rows = conn.execute(f"SELECT * FROM {table} ORDER BY id").fetchall()
             data["tables"][table] = [dict(row) for row in rows]
@@ -155,29 +199,63 @@ def export_snapshot():
     return payload
 
 
-def load_snapshot_if_needed():
-    """Restore from seed.json when the database is empty.
+# Every snapshot exported before the schema version was recorded came from the schema that
+# migration 001 describes, because that is the only one that existed.
+LEGACY_SNAPSHOT_SCHEMA_VERSION = 1
 
-    Only columns that still exist are restored, so a snapshot taken before a schema change
-    keeps loading instead of failing outright. Ids are preserved because techniques, room
-    membership and the message log all reference them.
-    """
+
+def read_snapshot():
+    """The committed snapshot, or None if it is missing, unreadable, or has no players."""
     if not config.SNAPSHOT_FILE.exists():
+        return None
+    try:
+        data = json.loads(config.SNAPSHOT_FILE.read_text())
+    except (OSError, ValueError):
+        return None
+    if not isinstance(data, dict) or not (data.get("tables") or {}).get("players"):
+        return None
+    return data
+
+
+def load_snapshot_if_needed():
+    """Restore seed.json into an empty database, at the schema it was exported from.
+
+    On a deploy the disk is fresh, so this runs before the database has any schema at all.
+    The rows go in at the snapshot's own version and the caller then runs the remaining
+    migrations, so data transformations live in one place - the migrations - whether the
+    rows arrived by upgrade or by restore. Restoring old rows straight into the newest
+    schema would skip those transformations and silently corrupt them.
+
+    Ids are preserved, because techniques, room membership and the message log all
+    reference them. Only columns that still exist are restored.
+    """
+    data = read_snapshot()
+    if data is None:
         return False
+    snapshot_version = data.get("schema_version") or LEGACY_SNAPSHOT_SCHEMA_VERSION
+
     conn = get_connection()
     try:
-        if conn.execute("SELECT COUNT(*) FROM players").fetchone()[0] > 0:
+        if table_exists(conn, "players") and conn.execute(
+                "SELECT COUNT(*) FROM players").fetchone()[0] > 0:
             return False
-        try:
-            data = json.loads(config.SNAPSHOT_FILE.read_text())
-        except (OSError, ValueError):
-            return False
-        tables = data.get("tables") or {}
-        if not tables.get("players"):
-            return False
+        current = applied_schema_version(conn)
+    finally:
+        conn.close()
+    if current is not None and current > snapshot_version:
+        # The schema has already moved past the snapshot, so its rows cannot be put back
+        # without the transformations in between. A deploy never gets here - its disk has
+        # no schema yet - so this only guards against restoring an old backup by hand.
+        return False
+
+    run_migrations(up_to=snapshot_version)
+
+    conn = get_connection()
+    try:
+        tables = data["tables"]
         for table in SNAPSHOT_TABLES:
             rows = tables.get(table) or []
-            if not rows:
+            if not rows or not table_exists(conn, table):
                 continue
             existing = set(table_columns(conn, table))
             for row in rows:

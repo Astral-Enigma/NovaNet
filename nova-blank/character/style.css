@@ -470,3 +470,16 @@ td form button:hover { background: var(--accent); color: var(--ink); border-colo
   .site-section:not(:has(> a)):not(:has(> form)) { margin-left: 0; padding: 8px 10px; }
   input[type="text"], input[type="number"], select { max-width: 100%; }
 }
+
+/* ---------- Character sheet --------------------------------------------- */
+
+/* current value and its limit, side by side */
+.field-pair { display: flex; flex-wrap: wrap; gap: 12px; }
+.field-pair label { flex: 0 1 200px; }
+
+.form-note {
+  max-width: 560px;
+  margin: 4px 0 18px;
+  color: var(--muted);
+  font-size: 13px;
+}

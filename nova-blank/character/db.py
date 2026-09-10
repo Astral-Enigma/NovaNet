@@ -83,12 +83,15 @@ def pending_migrations(version):
     return found
 
 
-def run_migrations():
-    """Apply every migration the database has not seen yet.
+def run_migrations(up_to=None):
+    """Apply every migration the database has not seen yet, optionally stopping at up_to.
 
     A database from before this system already holds the schema 001 describes, so it is
     baselined rather than rebuilt: 001's CREATE TABLE IF NOT EXISTS statements are no-ops
     against it, and ensure_legacy_columns fills in the columns an older CREATE lacks.
+
+    up_to exists for restoring a backup: the rows go in at the schema they were exported
+    from, and the remaining migrations then transform them like any other existing data.
     """
     conn = get_connection()
     try:
@@ -97,6 +100,8 @@ def run_migrations():
         if version is None:
             version = 0
         for number, path in pending_migrations(version):
+            if up_to is not None and number > up_to:
+                break
             conn.executescript(path.read_text())
             if legacy:
                 ensure_legacy_columns(conn)

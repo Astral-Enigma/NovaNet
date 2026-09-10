@@ -529,9 +529,13 @@ class TestSnapshot:
         assert app_module.load_snapshot_if_needed() is False
 
     def test_a_snapshot_missing_a_column_still_loads(self, app_module):
-        """A snapshot taken before a schema change must not become unloadable."""
+        """Columns a snapshot carries that the schema no longer has are skipped, not fatal."""
+        conn = app_module.get_connection()
+        version = app_module.applied_schema_version(conn)
+        conn.close()
         app_module.SNAPSHOT_FILE.write_text(json.dumps({
             "version": 1,
+            "schema_version": version,
             "tables": {"players": [{"id": 1, "name": "Kira", "is_hm": 0, "gone_field": "x"}]},
         }))
         conn = app_module.get_connection()

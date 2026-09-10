@@ -3,21 +3,26 @@
 {% block content %}
       <form method="post" action="/character">
         <label>Name: <input type="text" name="name" required /></label>
-        <label>Age: <input type="number" name="age" required /></label>
-        <label>Rank: <input type="text" name="rank" required /></label>
+        <label>Age: <input type="number" name="age" min="0" required /></label>
+        <label>Rank: <select name="rank" required>
+{% for r in ranks %}
+          <option value="{{ r }}"{% if loop.first %} selected{% endif %}>{{ r }} ({{ thresholds[r] }} AP)</option>
+{% endfor %}
+        </select></label>
         <label>Clan: <input type="text" name="clan" required /></label>
         <label>House: <input type="text" name="house" required /></label>
         <label>Trait: <input type="text" name="trait" required /></label>
-        <label>Trauma: <input type="number" name="trauma" required /></label>
-        <label>Pneuma: <input type="number" name="pneuma" required /></label>
-        <label>Deftness: <input type="number" name="deftness" required /></label>
-        <label>Handling: <input type="number" name="handling" required /></label>
-        <label>Tenacity: <input type="number" name="tenacity" required /></label>
-        <label>Wit: <input type="number" name="wit" required /></label>
-        <label>Perception: <input type="number" name="perception" required /></label>
-        <label>Composure: <input type="number" name="composure" required /></label>
-        <label>Pluck: <input type="number" name="pluck" value="0" readonly /></label>
-        <label>Potential: <input type="number" name="potential" value="0" readonly /></label>
+        <label>Trauma Limit: <input type="number" name="trauma_limit" value="15" min="0" required /></label>
+        <label>Pneuma Limit: <input type="number" name="pneuma_limit" value="10" min="0" required /></label>
+        <label>Deftness: <input type="number" name="deftness" min="0" required /></label>
+        <label>Handling: <input type="number" name="handling" min="0" required /></label>
+        <label>Tenacity: <input type="number" name="tenacity" min="0" required /></label>
+        <label>Wit: <input type="number" name="wit" min="0" required /></label>
+        <label>Perception: <input type="number" name="perception" min="0" required /></label>
+        <label>Composure: <input type="number" name="composure" min="0" required /></label>
+        <label>Academy Points: <input type="number" name="academy_points" value="0" min="0" /></label>
+        <label>Zel: <input type="number" name="zel" value="0" min="0" /></label>
+        <p class="form-note">A new character starts undamaged, with a full Pneuma Pool. Every Rank Up adds 3 to both limits. Pluck and Potential are worked out from the skills when you save.</p>
         <button type="submit">Add Character</button>
       </form>
 {% endblock %}

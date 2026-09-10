@@ -95,11 +95,12 @@ def player(client):
 
 def make_character(client, name, rank="Novice", **overrides):
     """Create a character through the real form and return its id."""
+    # Mirrors the real creation form, which sends limits but not current Trauma and
+    # Pneuma: a new character is undamaged with a full pool, so the server fills those in.
     payload = {
         "name": name, "age": "17", "rank": rank, "clan": "Varna", "house": "Zealot",
-        "trait": "Pyre", "trauma": "0", "pneuma": "10", "deftness": "3", "handling": "2",
+        "trait": "Pyre", "deftness": "3", "handling": "2",
         "tenacity": "4", "wit": "2", "perception": "2", "composure": "3",
-        "pluck": "0", "potential": "0",
     }
     payload.update(overrides)
     client.post("/character", data=payload, follow_redirects=False)

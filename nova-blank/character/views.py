@@ -152,10 +152,35 @@ def page(request, template, **context):
     )
 
 
+# One list drives both the header row and the cells, so a column added in one place cannot
+# fall out of step with the other. Each entry is (header, how to show it).
+CHARACTER_COLUMNS = [
+    ("Name", lambda c: c["name"]),
+    ("Age", lambda c: c["age"]),
+    ("Rank", lambda c: c["rank"]),
+    ("Clan", lambda c: c["clan"]),
+    ("House", lambda c: c["house"]),
+    ("Trait", lambda c: c["trait"]),
+    ("Trauma", lambda c: f"{c['trauma']} / {c['trauma_limit']}"),
+    ("Pneuma", lambda c: f"{c['pneuma']} / {c['pneuma_limit']}"),
+    ("Deftness", lambda c: c["deftness"]),
+    ("Handling", lambda c: c["handling"]),
+    ("Tenacity", lambda c: c["tenacity"]),
+    ("Wit", lambda c: c["wit"]),
+    ("Perception", lambda c: c["perception"]),
+    ("Composure", lambda c: c["composure"]),
+    ("Pluck", lambda c: c["pluck"]),
+    ("Potential", lambda c: c["potential"]),
+    ("AP", lambda c: c["academy_points"]),
+    ("Zel", lambda c: c["zel"]),
+]
+CHARACTER_HEADERS = [header for header, _ in CHARACTER_COLUMNS]
+
+
 def render_character_row(c, show_player):
     player_cell = f"<td>{esc(c['player_name'])}</td>" if show_player else ""
     return (
-        "<tr>" + player_cell + "".join(f"<td>{esc(c[f])}</td>" for f in FIELDS) +
+        "<tr>" + player_cell + "".join(f"<td>{esc(show(c))}</td>" for _, show in CHARACTER_COLUMNS) +
         f"<td><a href='/character/{c['id']}/techniques'>Techniques</a></td>"
         f"<td><a href='/character/{c['id']}/edit'>Edit</a></td>"
         f"<td><form method='post' action='/character/{c['id']}/delete' style='display:inline' "

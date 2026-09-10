@@ -4,21 +4,34 @@
       <form method="post" action="/character/{{ id }}/edit">
         {{ player_field }}
         <label>Name: <input type="text" name="name" value="{{ name }}" required /></label>
-        <label>Age: <input type="number" name="age" value="{{ age }}" required /></label>
-        <label>Rank: <input type="text" name="rank" value="{{ rank }}" required /></label>
+        <label>Age: <input type="number" name="age" value="{{ age }}" min="0" required /></label>
+        <label>Rank: <select name="rank" required>
+{% for r in ranks %}
+          <option value="{{ r }}"{% if r == rank %} selected{% endif %}>{{ r }}</option>
+{% endfor %}
+        </select></label>
         <label>Clan: <input type="text" name="clan" value="{{ clan }}" required /></label>
         <label>House: <input type="text" name="house" value="{{ house }}" required /></label>
         <label>Trait: <input type="text" name="trait" value="{{ trait }}" required /></label>
-        <label>Trauma: <input type="number" name="trauma" value="{{ trauma }}" required /></label>
-        <label>Pneuma: <input type="number" name="pneuma" value="{{ pneuma }}" required /></label>
-        <label>Deftness: <input type="number" name="deftness" value="{{ deftness }}" required /></label>
-        <label>Handling: <input type="number" name="handling" value="{{ handling }}" required /></label>
-        <label>Tenacity: <input type="number" name="tenacity" value="{{ tenacity }}" required /></label>
-        <label>Wit: <input type="number" name="wit" value="{{ wit }}" required /></label>
-        <label>Perception: <input type="number" name="perception" value="{{ perception }}" required /></label>
-        <label>Composure: <input type="number" name="composure" value="{{ composure }}" required /></label>
+        <div class="field-pair">
+          <label>Trauma: <input type="number" name="trauma" value="{{ trauma }}" min="0" required /></label>
+          <label>of limit <input type="number" name="trauma_limit" value="{{ trauma_limit }}" min="0" required /></label>
+        </div>
+        <div class="field-pair">
+          <label>Pneuma: <input type="number" name="pneuma" value="{{ pneuma }}" min="0" required /></label>
+          <label>of limit <input type="number" name="pneuma_limit" value="{{ pneuma_limit }}" min="0" required /></label>
+        </div>
+        <label>Deftness: <input type="number" name="deftness" value="{{ deftness }}" min="0" required /></label>
+        <label>Handling: <input type="number" name="handling" value="{{ handling }}" min="0" required /></label>
+        <label>Tenacity: <input type="number" name="tenacity" value="{{ tenacity }}" min="0" required /></label>
+        <label>Wit: <input type="number" name="wit" value="{{ wit }}" min="0" required /></label>
+        <label>Perception: <input type="number" name="perception" value="{{ perception }}" min="0" required /></label>
+        <label>Composure: <input type="number" name="composure" value="{{ composure }}" min="0" required /></label>
+        <label>Academy Points: <input type="number" name="academy_points" value="{{ academy_points }}" min="0" /></label>
+        <label>Zel: <input type="number" name="zel" value="{{ zel }}" min="0" /></label>
         <label>Pluck: <input type="number" name="pluck" value="{{ pluck }}" readonly /></label>
         <label>Potential: <input type="number" name="potential" value="{{ potential }}" readonly /></label>
+        <p class="form-note">Trauma counts up as damage is taken; Pneuma counts down as Tolls are paid.</p>
         <button type="submit">Save</button>
         <a href="/character/{{ id }}/techniques" class="section-link">Techniques</a>
         <a href="/characters" class="section-link">Cancel</a>

@@ -6,14 +6,7 @@
 # Run:
 #   uv run --with fastapi --with uvicorn --with python-multipart --with itsdangerous python3 main.py
 
-import csv
 import json
-import os
-import secrets
-import sqlite3
-from datetime import datetime, timezone
-from html import escape
-from pathlib import Path
 
 import uvicorn
 from fastapi import FastAPI, HTTPException, Request
@@ -54,6 +47,7 @@ from guards import (
     require_room_membership,
 )
 from views import (
+    CHARACTER_HEADERS,
     nav_links_for,
     page,
     render_character_row,
@@ -101,6 +95,8 @@ from seed import (
 
 from rules import (
     HABITATS,
+    RANK_AP_THRESHOLDS,
+    clean_character,
     MAX_DICE,
     RANK_DICE,
     RANK_ORDER,
@@ -123,26 +119,23 @@ app.add_middleware(SessionMiddleware, secret_key=config.load_session_secret())
 
 
 
-enable_wal()
-run_migrations()
-if not load_snapshot_if_needed():
-    migrate_csv_if_needed()
-seed_creature_catalog()
+def start():
+    """Bring the database up: restore a backup if it is empty, then migrate.
 
-
-def esc(value):
-    """Escape a value for interpolation into HTML text or a quoted attribute."""
-    return escape("" if value is None else str(value), quote=True)
-
-
-def js_string(value):
-    """Escape a value as a JS string literal safe inside a double-quoted HTML attribute.
-
-    HTML-escaping alone is not enough here: the parser decodes entities inside the
-    attribute before the JavaScript is parsed, so an apostrophe would still break out of
-    the string. json.dumps produces a properly escaped literal first.
+    The order is the point. A deploy starts from an empty disk, so restoring first puts the
+    backup's rows in at the schema they were exported from, and the migrations that follow
+    transform them like any other existing data. Migrating first would build the newest
+    schema empty and leave the restore to drop old-format rows straight into it.
     """
-    return escape(json.dumps("" if value is None else str(value)), quote=True)
+    enable_wal()
+    restored = load_snapshot_if_needed()
+    run_migrations()
+    if not restored:
+        migrate_csv_if_needed()
+    seed_creature_catalog()
+
+
+start()
 
 
 @app.exception_handler(StarletteHTTPException)
@@ -231,13 +224,13 @@ def index(request: Request):
 def new_character_form(request: Request):
     if get_current_player(request) is None:
         return RedirectResponse(url="/login", status_code=303)
-    return page(request, "character_new.html")
+    return page(request, "character_new.html", ranks=RANK_ORDER, thresholds=RANK_AP_THRESHOLDS)
 
 
 @app.get("/characters", response_class=HTMLResponse)
 def character_list(request: Request):
     rows = "".join(render_character_row(c, True) for c in read_characters())
-    return page(request, "characters.html", rows=safe(rows))
+    return page(request, "characters.html", rows=safe(rows), headers=CHARACTER_HEADERS)
 
 
 @app.get("/players", response_class=HTMLResponse)
@@ -287,7 +280,8 @@ def player_profile(id: int, request: Request):
     if player is None:
         raise HTTPException(status_code=404, detail="Player not found")
     rows = "".join(render_character_row(c, False) for c in read_characters_for_player(id))
-    return page(request, "player_profile.html", name=player["name"], rows=safe(rows))
+    return page(request, "player_profile.html", name=player["name"], rows=safe(rows),
+                headers=CHARACTER_HEADERS)
 
 
 @app.get("/character/{id}/techniques", response_class=HTMLResponse)
@@ -419,7 +413,7 @@ def edit_character_form(id: int, request: Request):
     else:
         player_field = ""
     return page(request, "edit.html", id=id, player_field=safe(player_field),
-                **{f: character[f] for f in FIELDS})
+                ranks=RANK_ORDER, **{f: character[f] for f in FIELDS})
 
 
 @app.post("/character/{id}/edit")
@@ -432,8 +426,8 @@ async def edit_character(id: int, request: Request):
         return RedirectResponse(url="/login", status_code=303)
     require_owner_or_hm(current_player, character)
     form = await request.form()
-    updated = compute_derived_fields({f: form[f] for f in FIELDS})
-    values = to_typed_values(updated)
+    updated = clean_character(form, existing=character)
+    values = [updated[f] for f in FIELDS]
     if current_player["is_hm"] and "player_id" in form:
         player_id = int(form["player_id"])
     else:
@@ -477,8 +471,8 @@ async def create_character(request: Request):
     if current_player is None:
         return RedirectResponse(url="/login", status_code=303)
     form = await request.form()
-    character = compute_derived_fields({f: form[f] for f in FIELDS})
-    values = to_typed_values(character)
+    character = clean_character(form)
+    values = [character[f] for f in FIELDS]
     conn = get_connection()
     try:
         columns = ["player_id"] + FIELDS

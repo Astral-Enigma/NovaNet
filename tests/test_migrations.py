@@ -33,6 +33,11 @@ INSERT INTO room_messages (room_id, character_id, kind, body, created_at)
 """
 
 
+def latest(app_module):
+    """The highest migration shipped, so these tests do not need editing for each new one."""
+    return max(number for number, _ in app_module.pending_migrations(0))
+
+
 def columns(app_module, table):
     conn = app_module.get_connection()
     try:
@@ -45,7 +50,7 @@ class TestFreshDatabase:
     def test_lands_on_the_latest_version(self, app_module):
         conn = app_module.get_connection()
         try:
-            assert app_module.applied_schema_version(conn) == 1
+            assert app_module.applied_schema_version(conn) == latest(app_module)
         finally:
             conn.close()
 
@@ -60,7 +65,7 @@ class TestFreshDatabase:
         assert "schema_version" in names
 
     def test_nothing_is_pending_afterwards(self, app_module):
-        assert app_module.pending_migrations(1) == []
+        assert app_module.pending_migrations(latest(app_module)) == []
 
 
 class TestLegacyDatabase:
@@ -85,7 +90,7 @@ class TestLegacyDatabase:
 
         conn = app_module.get_connection()
         try:
-            assert app_module.applied_schema_version(conn) == 1
+            assert app_module.applied_schema_version(conn) == latest(app_module)
             assert [r["name"] for r in conn.execute("SELECT name FROM characters")] == ["Legacy Hero"]
             assert [r["body"] for r in conn.execute("SELECT body FROM room_messages")] == ["an old line"]
         finally:
@@ -140,30 +145,31 @@ class TestRepeatRuns:
 
         before = snapshot()
         for _ in range(3):
-            assert app_module.run_migrations() == 1
+            assert app_module.run_migrations() == latest(app_module)
         assert snapshot() == before
 
 
 class TestRunner:
     def test_only_higher_numbered_migrations_are_pending(self, app_module):
+        top = latest(app_module)
         assert app_module.pending_migrations(0) != []
-        assert app_module.pending_migrations(1) == []
-        assert app_module.pending_migrations(99) == []
+        assert [n for n, _ in app_module.pending_migrations(top - 1)] == [top]
+        assert app_module.pending_migrations(top) == []
 
     def test_a_new_migration_is_applied_and_recorded(self, app_module, tmp_path, monkeypatch):
         migrations = tmp_path / "migrations"
         migrations.mkdir()
         (migrations / "001_initial.sql").write_text(
             "CREATE TABLE IF NOT EXISTS schema_version (version INTEGER NOT NULL);")
-        (migrations / "002_add_thing.sql").write_text(
+        (migrations / "900_add_thing.sql").write_text(
             "CREATE TABLE IF NOT EXISTS a_new_thing (id INTEGER PRIMARY KEY, label TEXT);")
         monkeypatch.setattr(app_module.config, "MIGRATIONS_DIR", migrations)
 
-        assert app_module.run_migrations() == 2
+        assert app_module.run_migrations() == 900
 
         conn = app_module.get_connection()
         try:
-            assert app_module.applied_schema_version(conn) == 2
+            assert app_module.applied_schema_version(conn) == 900
             assert app_module.table_exists(conn, "a_new_thing")
         finally:
             conn.close()

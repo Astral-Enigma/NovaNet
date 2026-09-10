@@ -29,10 +29,16 @@ CSV_FILE = APP_DIR / "characters.csv"
 # before snapshots existed.
 SNAPSHOT_FILE = APP_DIR / "seed.json"
 
-FIELDS = ["name", "age", "rank", "clan", "house", "trait", "trauma", "pneuma", "deftness",
-          "handling", "tenacity", "wit", "perception", "composure", "pluck", "potential"]
-NUMERIC_FIELDS = ["age", "trauma", "pneuma", "deftness", "handling", "tenacity", "wit",
-                  "perception", "composure", "pluck", "potential"]
+# trauma and pneuma are current values; the limits beside them are what they are measured
+# against (migration 002). Trauma counts up from 0, the Pneuma Pool counts down from its
+# limit.
+FIELDS = ["name", "age", "rank", "clan", "house", "trait",
+          "trauma", "trauma_limit", "pneuma", "pneuma_limit",
+          "deftness", "handling", "tenacity", "wit", "perception", "composure",
+          "pluck", "potential", "academy_points", "zel"]
+NUMERIC_FIELDS = ["age", "trauma", "trauma_limit", "pneuma", "pneuma_limit",
+                  "deftness", "handling", "tenacity", "wit", "perception", "composure",
+                  "pluck", "potential", "academy_points", "zel"]
 TECHNIQUE_FIELDS = ["name", "description", "toll", "type", "category", "effect", "burst",
                     "duration"]
 CREATURE_FIELDS = ["name", "description", "habitat", "main_skill", "default_threat_level",
