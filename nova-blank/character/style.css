@@ -483,3 +483,64 @@ td form button:hover { background: var(--accent); color: var(--ink); border-colo
   color: var(--muted);
   font-size: 13px;
 }
+
+/* a checkbox with its words beside it, not stacked above like the other labels */
+form label.check {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  color: var(--text);
+  font-size: 14px;
+  font-weight: 600;
+  letter-spacing: 0;
+  text-transform: none;
+}
+
+/* ---------- Health and the in-room sheet ------------------------------- */
+
+input.narrow { max-width: 80px; }
+
+/* Trauma at or past its limit - the table decides what happens, this just makes it seen */
+td.at-limit { color: #a3261d; font-weight: 700; }
+td.muted { color: var(--muted); }
+
+.health-form { margin: 0; }
+.health-form label { font-size: 10px; }
+
+.log-narration {
+  border-left-color: var(--accent) !important;
+  color: #fff;
+  font-style: italic;
+}
+.log-narration strong { color: var(--accent); font-style: normal; }
+
+.sheet {
+  margin: 16px 0 28px;
+  padding: 18px 20px;
+  background: var(--card);
+  border: 1px solid var(--line);
+  box-shadow: var(--shadow);
+  clip-path: polygon(0 0, calc(100% - var(--cut)) 0, 100% var(--cut), 100% 100%, var(--cut) 100%, 0 calc(100% - var(--cut)));
+}
+.sheet-head { margin-bottom: 14px; }
+.sheet-head strong { font-family: var(--display); font-size: 1.4rem; font-weight: 400; text-transform: uppercase; }
+.sheet-head span { margin-left: 10px; color: var(--muted); font-size: 13px; }
+.sheet-resources, .sheet-stats { display: flex; flex-wrap: wrap; gap: 10px; }
+.sheet-resources { margin-bottom: 12px; }
+.resource, .stat {
+  min-width: 96px;
+  padding: 8px 12px;
+  background: var(--paper);
+  border: 1px solid var(--line);
+}
+.resource span, .stat span {
+  display: block;
+  color: var(--muted);
+  font-size: 10px;
+  font-weight: 700;
+  letter-spacing: .09em;
+  text-transform: uppercase;
+}
+.resource strong, .stat strong { font-size: 1.05rem; }
+.resource.at-limit { border-color: #a3261d; }
+.resource.at-limit strong { color: #a3261d; }

@@ -42,7 +42,7 @@ NUMERIC_FIELDS = ["age", "trauma", "trauma_limit", "pneuma", "pneuma_limit",
 TECHNIQUE_FIELDS = ["name", "description", "toll", "type", "category", "effect", "burst",
                     "duration"]
 CREATURE_FIELDS = ["name", "description", "habitat", "main_skill", "default_threat_level",
-                   "talent_name", "talent_effect", "drops"]
+                   "talent_name", "talent_effect", "drops", "uses_techniques"]
 
 # The seed CSV carries the owning player alongside each character so that ownership and HM
 # status survive a reseed. Older files without these columns still load; their characters

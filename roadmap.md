@@ -128,12 +128,12 @@ whole roadmap, because they are what the people using it asked for.
 
 | Item | Status | Where it lands |
 | --- | --- | --- |
-| Ability to add an int to a dice result (e.g. +2) | Not started | **Near term** (Part III). The Handbook adds a skill as a flat bonus to the d20 or the d6, so this is the manual version of that. Rooms first; Phase 7 later applies it automatically. |
-| Ability to send messages without signing in, for the HM | Not started | **Near term.** Read as: the HM can post narration in a room without joining as a character, the way running enemies already works. *To confirm* - "without signing in" could mean something else. |
-| Ability to see sheet/stats in room | Not started | **Near term.** Your character's sheet beside the log. Trauma and Pneuma as current / limit are now real columns (migration 002), which this depends on. |
-| Drop down for character creation | **Partly done** — Rank is a list now | **Phase 1.4–1.6.** Clan, House and Trait are still free text; making them lists is the first step of making them mechanics. |
-| Health for players and enemies | Players: groundwork done. Enemies: not started | **Near term, then Phase 7.** Player Trauma is tracked against its limit as of migration 002. Enemies have no Trauma at all, and the Creature Catalog gives none - see the open question below. |
-| Play section split in two | Not started | *Needs clarifying.* Most likely the room page split into two panes, the log on one side and the sheet and controls on the other, which would pair with "see sheet/stats in room". |
+| Ability to add an int to a dice result (e.g. +2) | **Done** | A modifier on every roll in a room, player and enemy, shown in the log as `3d6 keep 2 +2 → 10 +2 = 12`. Bounded at ±99. Phase 7 will later apply skill bonuses automatically. |
+| Ability to send messages without signing in, for the HM | **Done** | Confirmed to mean posting in a room without joining it as a character. The HM narrates as "Headmaster", styled apart from speech. |
+| Ability to see sheet/stats in room | **Done** | The joined character's sheet sits beside the log, and the room lists everyone's Trauma and Pneuma. |
+| Drop down for character creation | **Done** | Rank, Clan, House and Trait are chosen from the Handbook's lists, and the server enforces them. Clan, House and Trait still carry no mechanics - that is Phase 1.4-1.6. |
+| Health for players and enemies | **Done** | Enemies roll Trauma and, if they can use techniques, Pneuma, per the ruling under Decisions on record (migration 003). Both sides take damage and spend Pneuma in a room, and it is logged; a character's changes are to its real sheet. |
+| Play section split in two | **Deferred by decision** | "We'll get there." |
 
 **From the start of the project**
 
@@ -194,6 +194,10 @@ Settled, so they stop being re-litigated:
 | **Stat reorganization by word length: deferred** | Dropped from Phase 0. |
 | **Card tools: deferred** | Dropped from Phase 3. No card mechanics exist in any manual anyway. |
 | **Stay on the Render free tier for now** | No persistent disk. See the data-durability note below. |
+| **Creature Trauma and Pneuma** (the Headmaster's ruling - the Creature Catalog gives neither) | Every creature has a Trauma Limit of **15 + (Threat Level)d6**. A creature that can use techniques also has a Pneuma Pool of **15 + (Threat Level)d6**; one that cannot has no pool at all. `rules.generate_creature_resources`. |
+| **Which creatures can use techniques** | A per-creature setting in the catalog, off by default, because the Catalog never says. The Headmaster ticks the ones that qualify. |
+| **HM narration** | The Headmaster posts to a room as the Headmaster without joining it as a character. |
+| **Trauma is not capped at its limit** | Past the limit is where Pluck Saves and deaths happen, which the table decides, so the app records it and flags it rather than stopping it. A Pneuma Pool is capped at its limit. |
 
 ### Data durability on the free tier
 
@@ -869,16 +873,15 @@ A track running alongside Phase 3 onward, not a final gate.
 
 ### Near term: what the first live session asked for
 
-Before resuming Phase 1, the To Do items that came out of play (Part I.5). They are small,
-they are what people using the site asked for, and most sit on work that just landed:
+**Done** - the modifier on rolls, HM narration, the sheet in a room, dropdowns for creation,
+and health for players and enemies. Splitting the Play section is deferred by decision.
 
-1. **A modifier on dice rolls** (+2) in rooms - small and self-contained.
-2. **HM narration in rooms** without joining as a character.
-3. **The character sheet visible in a room**, showing Trauma and Pneuma against their limits.
-4. **Health for enemies** - needs the rule decided first (see open questions).
-5. **Splitting the Play section** - once it is clear what is meant.
+Next is resuming Phase 1 at 1.4: Clan, House and Trait are chosen from lists now, but none of
+them does anything yet - no starting Zel, no skill bonuses, no free House technique.
 
-Then **Dropdowns for character creation** folds naturally into resuming Phase 1 at 1.4.
+One thing worth knowing about rooms: the log refreshes itself, but the tables above it -
+everyone's health, the enemy field - only update when the page is reloaded. Changes always
+reach the log, so nobody misses them, but the numbers in the tables can lag behind it.
 
 ### The phases
 
@@ -904,14 +907,8 @@ duel, everything else is filling in tables.
 
 ### Open questions
 
-- **How much Trauma does an enemy have?** The Creature Catalog gives creatures skills,
-  Talents and drops but never a Trauma Limit, yet says enemies "use the same combat, Trait,
-  and rank systems as players". The natural reading is the player rule at the creature's
-  Threat Level - 15, plus 3 for each rank above Novice - but it is a rules call, not a
-  code one, so it wants confirming before enemy health is built.
-- **What does "Play section split in two" mean?** See Part I.5.
-- **"Send messages without signing in, for the HM"** - read here as posting without joining
-  a room as a character. If it means something else, the near-term plan changes.
+- **Which catalog creatures can use techniques?** Unset for all seventeen. The Fleshspinner's
+  Talent gives it a target's techniques, so it is the obvious first candidate.
 
 - **How much does the app enforce vs. record?** The Handbook says outright that "a unanimous
   decision trumps the rulebook," and both manuals repeatedly say "at HM's discretion."

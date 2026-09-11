@@ -176,6 +176,73 @@ def clean_character(raw, existing=None):
     return character
 
 
+# The Creature Catalog gives creatures skills, Talents and drops but no Trauma or Pneuma.
+# The Headmaster's ruling fills that in: every creature has a Trauma Limit of 15 plus a d6
+# per Threat Level, and a creature that can use techniques has a Pneuma Pool the same way.
+CREATURE_BASE_TRAUMA = 15
+CREATURE_BASE_PNEUMA = 15
+
+
+def generate_creature_resources(threat_level, uses_techniques):
+    """(Trauma Limit, Pneuma Limit) for a freshly generated creature.
+
+    A creature that cannot use techniques has no Pneuma Pool at all, rather than one it
+    never draws on, so its limit is 0.
+    """
+    try:
+        level = max(1, min(len(RANK_ORDER), int(threat_level)))
+    except (TypeError, ValueError):
+        level = 1
+    trauma_limit = CREATURE_BASE_TRAUMA + sum(roll_dice(level, 6))
+    pneuma_limit = CREATURE_BASE_PNEUMA + sum(roll_dice(level, 6)) if uses_techniques else 0
+    return trauma_limit, pneuma_limit
+
+
+# A flat bonus added to a roll - the Handbook adds a skill to the d20 or the d6 this way.
+# Bounded so a typo cannot produce a nonsense total, well past any real skill.
+MAX_MODIFIER = 99
+
+
+def parse_modifier(value):
+    try:
+        number = int(str(value).strip() or 0)
+    except (TypeError, ValueError):
+        return 0
+    return max(-MAX_MODIFIER, min(MAX_MODIFIER, number))
+
+
+def resolve_roll(mode, roll_count, keep_count, modifier=0):
+    """Roll what was asked for. mode is 'd20' for a Possibility Roll, anything else for a
+    pool of d6 of which the highest keep_count are kept.
+
+    Returns a dict the room log can render: the dice, how many were kept, the kept total,
+    the modifier, and the final result with the modifier applied.
+    """
+    modifier = parse_modifier(modifier)
+    if mode == "d20":
+        rolls = roll_dice(1, 20)
+        return {"kind": "d20", "rolls": rolls, "roll_count": 1, "keep_count": 1,
+                "subtotal": rolls[0], "modifier": modifier, "total": rolls[0] + modifier}
+    roll_count = max(1, min(int(roll_count), MAX_DICE))
+    keep_count = max(1, min(int(keep_count), roll_count))
+    rolls, kept_sum = roll_and_keep(roll_count, keep_count)
+    return {"kind": "pool", "rolls": rolls, "roll_count": roll_count, "keep_count": keep_count,
+            "subtotal": kept_sum, "modifier": modifier, "total": kept_sum + modifier}
+
+
+def apply_health_change(current, limit, change, capped):
+    """A resource after changing it by change.
+
+    Trauma counts up from 0 as damage is taken, and can pass its limit - what happens then
+    (a Pluck Save, a death) is for the table to decide, so it is not capped. A Pneuma Pool
+    cannot hold more than its limit, so it is capped. Neither goes below 0.
+    """
+    value = max(0, int(current) + int(change))
+    if capped:
+        value = min(value, int(limit))
+    return value
+
+
 def compute_derived_fields(character):
     stat_fields = ["deftness", "handling", "tenacity", "wit", "perception", "composure"]
     try:

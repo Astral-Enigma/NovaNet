@@ -48,6 +48,12 @@ from guards import (
 )
 from views import (
     CHARACTER_HEADERS,
+    CREATURE_HEADERS,
+    describe_health_change,
+    modifier_input,
+    render_character_sheet,
+    render_member_rows,
+    render_roll,
     nav_links_for,
     page,
     render_character_row,
@@ -95,6 +101,9 @@ from seed import (
 
 from rules import (
     CLANS,
+    apply_health_change,
+    generate_creature_resources,
+    resolve_roll,
     HABITATS,
     HOUSES,
     TRAITS,
@@ -498,7 +507,7 @@ def enemy_list(request: Request):
     if redirect:
         return redirect
     rows = "".join(render_creature_row(c) for c in read_creatures())
-    return page(request, "enemies.html", rows=safe(rows))
+    return page(request, "enemies.html", rows=safe(rows), headers=CREATURE_HEADERS)
 
 
 @app.get("/enemies/new", response_class=HTMLResponse)
@@ -659,11 +668,7 @@ def room_view(id: int, request: Request):
         raise HTTPException(status_code=404, detail="Room not found")
     current_player = get_current_player(request)
     members = read_room_members(id)
-    member_rows = "".join(
-        f"<tr><td>{esc(m['name'])}</td><td>{esc(m['player_name'])}</td>"
-        f"<td>{esc(m['rank'])}</td><td>{esc(m['trait'])}</td></tr>"
-        for m in members
-    ) or "<tr><td colspan='4'>Nobody has joined yet.</td></tr>"
+    member_rows = render_member_rows(id, members, current_player, bool(room["closed_at"]))
 
     enemies = read_room_enemies(id)
     is_hm = bool(current_player and current_player["is_hm"])
@@ -711,6 +716,7 @@ def room_view(id: int, request: Request):
             "<option value='custom'>Custom</option></select></label>"
             f"<label>Custom roll: <input type='number' name='roll_count' min='1' max='{MAX_DICE}' value='{roll_count}' /></label>"
             f"<label>Keep: <input type='number' name='keep_count' min='1' max='{MAX_DICE}' value='{keep_count}' /></label>"
+            + modifier_input() +
             "<button type='submit'>Roll</button></form>"
             f"<form class='control-row' method='post' action='/play/room/{id}/leave' "
             "onsubmit=\"return confirm('Leave this room?')\">"
@@ -738,9 +744,22 @@ def room_view(id: int, request: Request):
     if not is_closed:
         controls += manage
 
+    # The Headmaster can speak to the room without joining it as a character.
+    narrate = ""
+    if is_hm and not is_closed:
+        narrate = (
+            f"<form class='control-row' method='post' action='/play/room/{id}/narrate'>"
+            "<label>Narrate as the Headmaster: <input type='text' name='body' required "
+            "maxlength='1000' autocomplete='off' /></label>"
+            "<button type='submit'>Narrate</button></form>"
+        )
+
+    sheet = render_character_sheet(read_character(mine["id"])) if mine else ""
+
     return page(request, "room.html", id=id, room_name=room["name"],
                 room_description=room["description"], member_rows=safe(member_rows),
-                enemy_panel=safe(enemy_panel), controls=safe(controls),
+                enemy_panel=safe(enemy_panel), controls=safe(narrate + controls),
+                sheet=safe(sheet),
                 messages=safe(render_room_messages(read_room_messages(id))))
 
 
@@ -772,6 +791,7 @@ async def spawn_room_enemy(id: int, request: Request):
     threat_level = max(1, min(6, threat_level))
 
     stats, talent_uses, talent_cooldown = generate_creature_stats(creature, threat_level)
+    trauma_limit, pneuma_limit = generate_creature_resources(threat_level, creature["uses_techniques"])
     # Several of the same creature can be in play at once, so number them per room.
     existing = [e for e in read_room_enemies(id, include_dismissed=True)
                 if e["creature_id"] == creature_id]
@@ -781,10 +801,12 @@ async def spawn_room_enemy(id: int, request: Request):
     try:
         cursor = conn.execute(
             "INSERT INTO room_enemies (room_id, creature_id, name, threat_level, stats, "
-            "talent_name, talent_effect, talent_uses, talent_cooldown, created_at) "
-            "VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)",
+            "talent_name, talent_effect, talent_uses, talent_cooldown, "
+            "trauma, trauma_limit, pneuma, pneuma_limit, created_at) "
+            "VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, 0, ?, ?, ?, ?)",
             (id, creature_id, name, threat_level, json.dumps(stats), creature["talent_name"],
-             creature["talent_effect"], talent_uses, talent_cooldown, utc_now()),
+             creature["talent_effect"], talent_uses, talent_cooldown,
+             trauma_limit, pneuma_limit, pneuma_limit, utc_now()),
         )
         conn.commit()
         enemy_id = cursor.lastrowid
@@ -792,10 +814,11 @@ async def spawn_room_enemy(id: int, request: Request):
         conn.close()
 
     summary = ", ".join(f"{skill} {value}" for skill, value in stats.items())
+    health = f"Trauma {trauma_limit}" + (f", Pneuma {pneuma_limit}" if pneuma_limit else "")
     post_room_message(
         id, None, "system",
         f"{current_player['name']} sent in {name} ({rank_for_threat(threat_level)}, "
-        f"threat {threat_level}) - {summary}.",
+        f"threat {threat_level}) - {health}; {summary}.",
     )
     return RedirectResponse(url=f"/play/room/{id}", status_code=303)
 
@@ -810,25 +833,11 @@ async def roll_as_enemy(id: int, enemy_id: int, request: Request):
         raise HTTPException(status_code=404, detail="Enemy not found in this room")
     form = await request.form()
     mode = form.get("mode", "threat")
-    if mode == "d20":
-        body = f"rolls <strong>1d20</strong>: <strong>{roll_dice(1, 20)[0]}</strong>"
-    else:
-        if mode == "threat":
-            roll_count, keep_count = RANK_DICE[rank_for_threat(enemy["threat_level"])]
-        else:
-            try:
-                roll_count = int(form.get("roll_count", 1))
-                keep_count = int(form.get("keep_count", 1))
-            except (TypeError, ValueError):
-                roll_count, keep_count = 1, 1
-        roll_count = max(1, min(roll_count, MAX_DICE))
-        keep_count = max(1, min(keep_count, roll_count))
-        all_rolls, kept_sum = roll_and_keep(roll_count, keep_count)
-        body = (
-            f"rolls <strong>{roll_count}d6 keep {keep_count}</strong>: "
-            f"{render_dice_result(all_rolls, keep_count)}&rarr; <strong>{kept_sum}</strong>"
-        )
-    post_room_message(id, None, "roll", body, enemy_id=enemy_id)
+    roll_count, keep_count = RANK_DICE[rank_for_threat(enemy["threat_level"])]
+    if mode == "custom":
+        roll_count, keep_count = pool_from_form(form, roll_count, keep_count)
+    result = resolve_roll(mode, roll_count, keep_count, form.get("modifier", 0))
+    post_room_message(id, None, "roll", render_roll(result), enemy_id=enemy_id)
     return RedirectResponse(url=f"/play/room/{id}", status_code=303)
 
 
@@ -961,27 +970,100 @@ async def roll_in_room(id: int, request: Request):
         return RedirectResponse(url="/login", status_code=303)
     form = await request.form()
     mode = form.get("mode", "rank")
-    if mode == "d20":
-        result = roll_dice(1, 20)[0]
-        body = f"rolls <strong>1d20</strong>: <strong>{result}</strong>"
-    else:
-        if mode == "rank":
-            roll_count, keep_count = RANK_DICE.get(str(character["rank"]).strip().title(), (1, 1))
-        else:
-            try:
-                roll_count = int(form.get("roll_count", 1))
-                keep_count = int(form.get("keep_count", 1))
-            except (TypeError, ValueError):
-                roll_count, keep_count = 1, 1
-        roll_count = max(1, min(roll_count, MAX_DICE))
-        keep_count = max(1, min(keep_count, roll_count))
-        all_rolls, kept_sum = roll_and_keep(roll_count, keep_count)
-        body = (
-            f"rolls <strong>{roll_count}d6 keep {keep_count}</strong>: "
-            f"{render_dice_result(all_rolls, keep_count)}&rarr; <strong>{kept_sum}</strong>"
-        )
-    post_room_message(id, character["id"], "roll", body)
+    roll_count, keep_count = RANK_DICE.get(str(character["rank"]).strip().title(), (1, 1))
+    if mode == "custom":
+        roll_count, keep_count = pool_from_form(form, roll_count, keep_count)
+    result = resolve_roll(mode, roll_count, keep_count, form.get("modifier", 0))
+    post_room_message(id, character["id"], "roll", render_roll(result))
     return RedirectResponse(url=f"/play/room/{id}", status_code=303)
+
+
+def pool_from_form(form, default_roll, default_keep):
+    """A custom roll/keep pool from the form, falling back to the defaults if unreadable."""
+    try:
+        return int(form.get("roll_count", default_roll)), int(form.get("keep_count", default_keep))
+    except (TypeError, ValueError):
+        return default_roll, default_keep
+
+
+def change_from_form(form, key):
+    try:
+        return int(str(form.get(key, 0)).strip() or 0)
+    except (TypeError, ValueError):
+        return 0
+
+
+@app.post("/play/room/{id}/narrate")
+async def narrate_in_room(id: int, request: Request):
+    """The Headmaster speaks to the room as the Headmaster, without joining it as a
+    character - the same standing they have when running enemies."""
+    _room, current_player = require_room_hm(id, request)
+    if current_player is None:
+        return RedirectResponse(url="/login", status_code=303)
+    form = await request.form()
+    body = (form.get("body") or "").strip()[:1000]
+    if body:
+        post_room_message(id, None, "narration", body)
+    return RedirectResponse(url=f"/play/room/{id}", status_code=303)
+
+
+@app.post("/play/room/{id}/enemy/{enemy_id}/health")
+async def change_enemy_health(id: int, enemy_id: int, request: Request):
+    _room, current_player = require_room_hm(id, request)
+    if current_player is None:
+        return RedirectResponse(url="/login", status_code=303)
+    enemy = read_room_enemy(enemy_id)
+    if enemy is None or enemy["room_id"] != id or enemy["dismissed_at"]:
+        raise HTTPException(status_code=404, detail="Enemy not found in this room")
+    form = await request.form()
+    record_health_change(id, "room_enemies", enemy, form, enemy_id=enemy_id)
+    return RedirectResponse(url=f"/play/room/{id}", status_code=303)
+
+
+@app.post("/play/room/{id}/character/{character_id}/health")
+async def change_character_health(id: int, character_id: int, request: Request):
+    """Damage and healing in play change the character sheet itself: the Handbook's
+    optional rule is that only the Rest action restores Trauma and Pneuma, so nothing is
+    reset between scenes."""
+    room = read_room(id)
+    if room is None:
+        raise HTTPException(status_code=404, detail="Room not found")
+    if room["closed_at"]:
+        raise HTTPException(status_code=403, detail="This room is closed.")
+    current_player = get_current_player(request)
+    if current_player is None:
+        return RedirectResponse(url="/login", status_code=303)
+    member = next((m for m in read_room_members(id) if m["id"] == character_id), None)
+    if member is None:
+        raise HTTPException(status_code=404, detail="That character is not in this room")
+    if member["player_id"] != current_player["id"] and not current_player["is_hm"]:
+        raise HTTPException(status_code=403, detail="Only the Headmaster or the character's player can change that.")
+    form = await request.form()
+    record_health_change(id, "characters", member, form, character_id=character_id)
+    export_characters_csv()
+    return RedirectResponse(url=f"/play/room/{id}", status_code=303)
+
+
+def record_health_change(room_id, table, thing, form, character_id=None, enemy_id=None):
+    """Apply a Trauma and Pneuma change, save it, and put it in the log."""
+    trauma = apply_health_change(thing["trauma"], thing["trauma_limit"],
+                                 change_from_form(form, "trauma_change"), capped=False)
+    pneuma = thing["pneuma"]
+    if thing["pneuma_limit"]:
+        pneuma = apply_health_change(thing["pneuma"], thing["pneuma_limit"],
+                                     change_from_form(form, "pneuma_change"), capped=True)
+    conn = get_connection()
+    try:
+        conn.execute(f"UPDATE {table} SET trauma = ?, pneuma = ? WHERE id = ?",
+                     (trauma, pneuma, thing["id"]))
+        conn.commit()
+    finally:
+        conn.close()
+    for resource, before, after, limit in (("trauma", thing["trauma"], trauma, thing["trauma_limit"]),
+                                           ("pneuma", thing["pneuma"], pneuma, thing["pneuma_limit"])):
+        line = describe_health_change(thing["name"], resource, before, after, limit)
+        if line:
+            post_room_message(room_id, character_id, "system", line, enemy_id=enemy_id)
 
 
 # Run the app with uvicorn when this file is executed directly.

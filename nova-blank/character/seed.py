@@ -26,63 +26,64 @@ from rules import normalize_rank, starting_limits
 # after a deploy wipes the database, which is not true of anything only stored in SQLite.
 # Threat levels are the Catalog's own; main skills must be one of SKILLS for the stat
 # generator, so creatures the Catalog gives a conditional skill get their primary here and
-# the condition noted in the description.
+# the condition noted in the description. The trailing 0 is uses_techniques: the
+# Catalog never says which creatures can, so none are marked until the Headmaster does.
 CATALOG_SEED = [
     # Land Dwelling
     ("Minotaur", "Lives deep underground or in dense forest, manipulating the surrounding area with Pneuma to build mazes it hunts in. Intelligence comparable to a child.",
      "Land Dwelling", "Tenacity", 1, "Maze Master",
-     "Passively gains +x to all rolls where x is the number of opponents. Can activate to vanish into the environment, triggering a contested Deftness roll; on success opponents become Rattled and it becomes Obscured until successfully attacked.", "Broken Horn"),
+     "Passively gains +x to all rolls where x is the number of opponents. Can activate to vanish into the environment, triggering a contested Deftness roll; on success opponents become Rattled and it becomes Obscured until successfully attacked.", "Broken Horn", 0),
     ("Gorgon", "A person-sized serpent as old as the Clans, dwelling in deep caves and quarries. Its stone diet lets its skin take on enhanced properties of the rock it eats.",
      "Land Dwelling", "Deftness", 2, "Terra Toxin",
-     "A two turn attack: coils around the target to Bind it, then injects a hardening venom that solidifies over 3 rounds, killing them. Resistible with strong enough Pneuma or medical supplies.", "Gorgon's Eye"),
+     "A two turn attack: coils around the target to Bind it, then injects a hardening venom that solidifies over 3 rounds, killing them. Resistible with strong enough Pneuma or medical supplies.", "Gorgon's Eye", 0),
     ("Alkalym", "A naturally occurring defence system for caves of compressed Pneumatic energy called Void Shards. Its strength scales with the concentration of shards it guards.",
      "Land Dwelling", "Composure", 4, "Bedrock Beam",
-     "Charges for a turn, then fires a Pneumatic beam laced with Terra Toxin that can hit multiple targets. If damage exceeds the target's Pluck they begin to solidify over 3 turns, killing them.", "Void Fragment"),
+     "Charges for a turn, then fires a Pneumatic beam laced with Terra Toxin that can hit multiple targets. If damage exceeds the target's Pluck they begin to solidify over 3 turns, killing them.", "Void Fragment", 0),
     ("Chimera", "A grotesque amalgamation of gorgon, takdyl and siren. The siren head lures prey, the gorgon tail petrifies it, and the takdyl torso makes it fast and durable.",
      "Land Dwelling", "Deftness", 5, "Borrowed Talents",
-     "Gains 2 Talents from either the Gorgon, Takdyl or Siren.", "Petrified Egg"),
+     "Gains 2 Talents from either the Gorgon, Takdyl or Siren.", "Petrified Egg", 0),
     # Sky-Faring
     ("Mechanicrow", "A Forged-built hybrid species, made to hold the ecosystem of Heirloom Island together after The Blue Scream drove its avian life toward extinction.",
-     "Sky-Faring", "Perception", 1, "None", "This creature has no Talent.", "Iron Feather"),
+     "Sky-Faring", "Perception", 1, "None", "This creature has no Talent.", "Iron Feather", 0),
     ("Harpy", "A scavenger evolved by feeding on the Pneuma-soaked corpses of the Battle of Canid Grace. Shifts between beast and humanoid shape at will.",
      "Sky-Faring", "Deftness", 3, "Organic Acceleration",
-     "Takes the shape of whatever it last consumed Pneuma from. If it attacks a player it gains access to their Trait for xd6 rounds where x is its Threat Level. Main skill becomes Tenacity when unable to fly.", "Wicked Talon"),
+     "Takes the shape of whatever it last consumed Pneuma from. If it attacks a player it gains access to their Trait for xd6 rounds where x is its Threat Level. Main skill becomes Tenacity when unable to fly.", "Wicked Talon", 0),
     ("Takdyl", "Harpies that fed on other harpies in desperation. Reptilian and avian both, with two sets of dragon-like wings and extra mouths that ingest prey and expel toxins.",
      "Sky-Faring", "Tenacity", 4, "Rallied Expulsion",
-     "Spends a Support action vomiting out impurities, removing x status effects and granting immunity to them for x rounds where x is its Threat Level. Anything touching the expelled fluid gains the effects instead. Main skill becomes Deftness while airborne.", "Noxious Gland"),
+     "Spends a Support action vomiting out impurities, removing x status effects and granting immunity to them for x rounds where x is its Threat Level. Anything touching the expelled fluid gains the effects instead. Main skill becomes Deftness while airborne.", "Noxious Gland", 0),
     ("Wyvern", "Takdyls that fed on their own kind, roughly triple the size, with wings and eyes numbering as many as it has consumed. Can manifest mouths anywhere on its body.",
      "Sky-Faring", "Tenacity", 5, "True Organic Acceleration",
-     "On entering combat its main skill becomes the type and value of the opponent's lowest skill, and re-targets as opponents leave. Can activate to raise that skill by xd6 where x is its Threat Level.", "Oculus Scale"),
+     "On entering combat its main skill becomes the type and value of the opponent's lowest skill, and re-targets as opponents leave. Can activate to raise that skill by xd6 where x is its Threat Level.", "Oculus Scale", 0),
     # Sea-Faring
     ("Kelpie", "The merging of a drowned soul and a drowned animal. Generally non-aggressive, capable of telepathic speech and of shaping water into a humanoid form while on land.",
      "Sea-Faring", "Composure", 1, "Shape of Water",
-     "On taking lethal damage it shifts to a liquid state instead and gains +x to movement. Triggers x times where x is its Threat Level. Main skill becomes Deftness in water.", "Chipped Hoof"),
+     "On taking lethal damage it shifts to a liquid state instead and gains +x to movement. Triggers x times where x is its Threat Level. Main skill becomes Deftness in water.", "Chipped Hoof", 0),
     ("Siren", "A soul drowned maliciously and reincarnated in rage. Sees the Color of the Core and hunts those with ill intent by singing them to sleep.",
      "Sea-Faring", "Wit", 3, "Song of Serenity",
-     "Sings, rolling 1d20 + Wit. Anyone whose Pluck is exceeded becomes Bound and hallucinates their heart's desire, taking xd6 Pneumatic damage at the end of their turn where x is its Threat Level. Reaching zero Pneuma this way kills the target.", "Withered Tongue"),
+     "Sings, rolling 1d20 + Wit. Anyone whose Pluck is exceeded becomes Bound and hallucinates their heart's desire, taking xd6 Pneumatic damage at the end of their turn where x is its Threat Level. Reaching zero Pneuma this way kills the target.", "Withered Tongue", 0),
     ("Kraken", "Titans cast out of the celestial realm for their destructive nature. Adapts in both personality and physicality to the waters it inhabits.",
      "Sea-Faring", "Wit", 5, "Refractive Skin",
-     "Passively refracts elemental energy: against a Pneumatic or Trait attack, roll xd6 where x is its Threat Level and subtract that from the damage. Can activate to blend in via a contested Wit check, becoming Obscured until successfully damaged.", "Scarred Mandible"),
+     "Passively refracts elemental energy: against a Pneumatic or Trait attack, roll xd6 where x is its Threat Level and subtract that from the damage. Can activate to blend in via a contested Wit check, becoming Obscured until successfully damaged.", "Scarred Mandible", 0),
     # Celestial
     ("Phoenix", "One of the original Celestial Beasts, formed from the energy lost each time a target falls to the Pyre Trait. Killing one only scatters it into ash and a new egg.",
      "Celestial", "Composure", 6, "Pyre Phasing",
-     "Completely immune to Pyre attacks and statuses, transmuting that damage into bonus health and damage on its next attack. Can activate to turn any Trait based attack into Pyre for 1d6 + x rounds where x is its Threat Level.", "Essence Stone"),
+     "Completely immune to Pyre attacks and statuses, transmuting that damage into bonus health and damage on its next attack. Can activate to turn any Trait based attack into Pyre for 1d6 + x rounds where x is its Threat Level.", "Essence Stone", 0),
     ("Magnus Dragon", "A Titan created as the Phoenix's predator to balance the Celestial ecosystem. Composed almost entirely of Null energy.",
      "Celestial", "Tenacity", 6, "Bite of the Progenitor",
-     "Nullifies the Trait of anything it bites for x rounds where x is its Threat Level unless the target passes a contested Composure roll. Anything killed by this bite cannot be resurrected.", "Distortion Fang"),
+     "Nullifies the Trait of anything it bites for x rounds where x is its Threat Level unless the target passes a contested Composure roll. Anything killed by this bite cannot be resurrected.", "Distortion Fang", 0),
     # Damned
     ("The Afflicted", "Souls that were people or wildlife before Ashecorps' influence touched them in death. Individually weak, they travel in threes and call for more.",
      "Damned", "Tenacity", 2, "Swarm",
-     "Spends a turn calling for help; each consecutive call adds 1d6/2 Afflicted of the same or lower level to the fight.", "Void Essence"),
+     "Spends a turn calling for help; each consecutive call adds 1d6/2 Afflicted of the same or lower level to the fight.", "Void Essence", 0),
     ("Fleshspinner", "The failed emergence of an attempted Haunted creation. Formless, it consumes people who resemble its fractured memories and takes on their attributes.",
      "Damned", "Wit", 5, "Skin Shaping",
-     "A two turn attack: bites the target, siphoning xd6 Pneuma where x is its Threat Level, then gains x of the target's techniques and raises its main skill by half the target's corresponding skill.", "Rancid Flesh"),
+     "A two turn attack: bites the target, siphoning xd6 Pneuma where x is its Threat Level, then gains x of the target's techniques and raises its main skill by half the target's corresponding skill.", "Rancid Flesh", 0),
     ("Zeitghast", "Spirits made of the missing parts of history, cursed to wander. They drain the Pneuma of anyone nearby, usually before a fight can begin at all.",
      "Damned", "Composure", 5, "Shadow Siphon",
-     "Passively steals xd6 Pneuma from x targets where x is its Threat Level. Can activate to steal xd6 + x maximum Pneuma from one target, disabling the passive for x rounds. Reaching zero Pneuma in this fight kills the target.", "Swath of Void"),
+     "Passively steals xd6 Pneuma from x targets where x is its Threat Level. Can activate to steal xd6 + x maximum Pneuma from one target, disabling the passive for x rounds. Reaching zero Pneuma in this fight kills the target.", "Swath of Void", 0),
     ("Kah'clth-Kahban", "A Damned Deity under Ashecorps' command, known to mortals as Ban, the Greed God. Sacrificed his own kingdom for a Dominion the size of his throne room, in which he controls gravity.",
      "Damned", "Tenacity", 6, "Wishes on Weighted Shoulder",
-     "At the start of combat rolls xd6 where x is its Threat Level; that result is subtracted from the effectiveness of any opponent action involving major movement. Can activate to make an opponent Winded, removing the previous debuff; used on a Winded opponent it Binds them instead, and on a Bound opponent it doubles the next damage they take.", "Relief of Restriction"),
+     "At the start of combat rolls xd6 where x is its Threat Level; that result is subtracted from the effectiveness of any opponent action involving major movement. Can activate to make an opponent Winded, removing the previous debuff; used on a Winded opponent it Binds them instead, and on a Bound opponent it doubles the next damage they take.", "Relief of Restriction", 0),
 ]
 
 

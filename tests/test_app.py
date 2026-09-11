@@ -260,7 +260,7 @@ class TestCreatureCatalog:
         conn.execute(
             f"INSERT INTO creatures ({', '.join(app_module.CREATURE_FIELDS)}) "
             f"VALUES ({', '.join('?' for _ in app_module.CREATURE_FIELDS)})",
-            ("Homebrew", "d", "Damned", "Wit", 3, "t", "e", "drop"),
+            ("Homebrew", "d", "Damned", "Wit", 3, "t", "e", "drop", 0),
         )
         conn.commit()
         conn.close()

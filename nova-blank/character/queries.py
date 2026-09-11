@@ -114,6 +114,9 @@ def to_typed_creature_values(form):
                 values.append(int(raw))
             except (TypeError, ValueError):
                 values.append(1)
+        elif f == "uses_techniques":
+            # A checkbox: present when ticked, absent when not.
+            values.append(1 if str(raw).strip().lower() in ("1", "on", "true", "yes") else 0)
         else:
             values.append(raw)
     return values

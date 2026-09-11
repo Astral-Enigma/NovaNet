@@ -3,7 +3,7 @@
 {% block content %}
       <div class="table-wrap">
         <table>
-        <tr><th>Name</th><th>Description</th><th>Habitat</th><th>Main Skill</th><th>Default Threat Level</th><th>Talent Name</th><th>Talent Effect</th><th>Drops</th><th>Generate</th><th>Edit</th><th>Delete</th></tr>
+        <tr>{% for h in headers %}<th>{{ h }}</th>{% endfor %}<th>Generate</th><th>Edit</th><th>Delete</th></tr>
         {{ rows }}
         </table>
       </div>
