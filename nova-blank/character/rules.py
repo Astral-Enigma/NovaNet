@@ -43,6 +43,27 @@ STARTING_PNEUMA_LIMIT = 10
 LIMIT_GAIN_PER_RANK = 3
 
 
+# Headmaster's Handbook, Character Creation. The five base Traits only: the ReTraits
+# (Tinsyr, Umbrah) are Major Talents taken later in place of one of these.
+CLANS = ["Varna", "Kin", "Forged", "Stricken", "Haunted"]
+HOUSES = ["Zealot", "Hermit", "Patron", "Serpent", "Alchemist", "Emperor"]
+TRAITS = ["Shin", "Zin", "Smog", "Pyre", "Null"]
+
+
+def normalize_choice(value, options):
+    """The canonical spelling of value if it is one of options, ignoring case and
+    surrounding space, otherwise an empty string.
+
+    Clan, House and Trait were free text. An unrecognised value - the '0' that unset
+    fields hold - reads as not chosen rather than being kept as something no rule applies to.
+    """
+    text = str(value or "").strip().lower()
+    for option in options:
+        if text == option.lower():
+            return option
+    return ""
+
+
 def normalize_rank(value):
     """The canonical rank name for whatever was typed.
 
@@ -137,9 +158,9 @@ def clean_character(raw, existing=None):
         "name": text("name"),
         "age": number("age", 0),
         "rank": rank,
-        "clan": text("clan"),
-        "house": text("house"),
-        "trait": text("trait"),
+        "clan": normalize_choice(text("clan"), CLANS),
+        "house": normalize_choice(text("house"), HOUSES),
+        "trait": normalize_choice(text("trait"), TRAITS),
         "trauma_limit": number("trauma_limit", trauma_limit_default),
         "pneuma_limit": number("pneuma_limit", pneuma_limit_default),
         "academy_points": number("academy_points", 0),

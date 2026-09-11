@@ -237,3 +237,70 @@ class TestTheTwoUpgradePathsAgree:
         row = conn.execute("SELECT trauma, trauma_limit, pneuma, pneuma_limit FROM characters").fetchone()
         conn.close()
         assert tuple(row) == (0, 15, 13, 13)
+
+
+class TestCreationDropdowns:
+    """Clan, House and Trait are chosen from the Handbook's lists, as Rank is."""
+
+    HANDBOOK = {
+        "clan": ["Varna", "Kin", "Forged", "Stricken", "Haunted"],
+        "house": ["Zealot", "Hermit", "Patron", "Serpent", "Alchemist", "Emperor"],
+        "trait": ["Shin", "Zin", "Smog", "Pyre", "Null"],
+    }
+
+    def _options(self, body, name):
+        import re
+        select = re.search(r'<select name="%s".*?</select>' % name, body, re.S).group(0)
+        return re.findall(r'<option value="([^"]+)"', select), select
+
+    def test_the_lists_match_the_handbook(self, app_module):
+        import sys
+        rules = sys.modules["rules"]
+        assert rules.CLANS == self.HANDBOOK["clan"]
+        assert rules.HOUSES == self.HANDBOOK["house"]
+        assert rules.TRAITS == self.HANDBOOK["trait"]
+
+    def test_the_creation_form_offers_each_list(self, player):
+        body = player.get("/characters/new").text
+        for field, expected in self.HANDBOOK.items():
+            options, _ = self._options(body, field)
+            assert options == expected, f"{field} offered {options}"
+
+    def test_nothing_is_preselected_on_a_new_character(self, player):
+        """A default would let someone skip a choice the Handbook makes them take."""
+        body = player.get("/characters/new").text
+        for field in self.HANDBOOK:
+            _, select = self._options(body, field)
+            assert 'value="" disabled selected' in select
+
+    def test_editing_keeps_the_existing_choice_selected(self, player):
+        cid = make_character(player, "Ryn", clan="Kin", house="Hermit", trait="Shin")
+        body = player.get(f"/character/{cid}/edit").text
+        assert 'value="Kin" selected' in body
+        assert 'value="Hermit" selected' in body
+        assert 'value="Shin" selected' in body
+
+    def test_an_unset_value_asks_to_be_chosen_on_edit(self, player, app_module):
+        cid = make_character(player, "Ryn")
+        conn = app_module.get_connection()
+        conn.execute("UPDATE characters SET house = '0' WHERE id = ?", (cid,))
+        conn.commit()
+        conn.close()
+        _, select = self._options(player.get(f"/character/{cid}/edit").text, "house")
+        assert 'value="" disabled selected' in select
+
+    def test_case_and_spacing_are_forgiven(self, player, app_module):
+        cid = make_character(player, "Ryn", clan="  varna ", house="ZEALOT", trait="pyre")
+        conn = app_module.get_connection()
+        row = conn.execute("SELECT clan, house, trait FROM characters WHERE id = ?", (cid,)).fetchone()
+        conn.close()
+        assert tuple(row) == ("Varna", "Zealot", "Pyre")
+
+    def test_a_value_outside_the_list_is_not_stored(self, player, app_module):
+        """The dropdown is only the front door; the server enforces the list too, so a
+        hand-built request cannot store an invented House."""
+        cid = make_character(player, "Ryn", clan="Dragonkin", house="Gryffindor", trait="Wind")
+        conn = app_module.get_connection()
+        row = conn.execute("SELECT clan, house, trait FROM characters WHERE id = ?", (cid,)).fetchone()
+        conn.close()
+        assert tuple(row) == ("", "", "")

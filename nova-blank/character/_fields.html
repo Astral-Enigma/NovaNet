@@ -1,0 +1,13 @@
+{#
+  A required dropdown of fixed options. The placeholder is disabled, so the form cannot be
+  sent until something real is picked - which also catches a stored value that is not one
+  of the options, like the '0' older characters hold, instead of silently keeping it.
+#}
+{% macro choice(name, label, options, selected="") %}
+        <label>{{ label }}: <select name="{{ name }}" required>
+          <option value="" disabled{% if selected not in options %} selected{% endif %}>Choose a {{ label | lower }}</option>
+{% for o in options %}
+          <option value="{{ o }}"{% if o == selected %} selected{% endif %}>{{ o }}</option>
+{% endfor %}
+        </select></label>
+{% endmacro %}

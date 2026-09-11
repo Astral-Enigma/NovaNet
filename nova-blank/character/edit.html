@@ -1,4 +1,5 @@
 {% extends "_layout.html" %}
+{% from "_fields.html" import choice %}
 {% block heading %}Edit Character{% endblock %}
 {% block content %}
       <form method="post" action="/character/{{ id }}/edit">
@@ -10,9 +11,9 @@
           <option value="{{ r }}"{% if r == rank %} selected{% endif %}>{{ r }}</option>
 {% endfor %}
         </select></label>
-        <label>Clan: <input type="text" name="clan" value="{{ clan }}" required /></label>
-        <label>House: <input type="text" name="house" value="{{ house }}" required /></label>
-        <label>Trait: <input type="text" name="trait" value="{{ trait }}" required /></label>
+        {{ choice("clan", "Clan", clans, clan) }}
+        {{ choice("house", "House", houses, house) }}
+        {{ choice("trait", "Trait", traits, trait) }}
         <div class="field-pair">
           <label>Trauma: <input type="number" name="trauma" value="{{ trauma }}" min="0" required /></label>
           <label>of limit <input type="number" name="trauma_limit" value="{{ trauma_limit }}" min="0" required /></label>

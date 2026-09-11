@@ -94,7 +94,10 @@ from seed import (
 )
 
 from rules import (
+    CLANS,
     HABITATS,
+    HOUSES,
+    TRAITS,
     RANK_AP_THRESHOLDS,
     clean_character,
     MAX_DICE,
@@ -224,7 +227,8 @@ def index(request: Request):
 def new_character_form(request: Request):
     if get_current_player(request) is None:
         return RedirectResponse(url="/login", status_code=303)
-    return page(request, "character_new.html", ranks=RANK_ORDER, thresholds=RANK_AP_THRESHOLDS)
+    return page(request, "character_new.html", ranks=RANK_ORDER, thresholds=RANK_AP_THRESHOLDS,
+                clans=CLANS, houses=HOUSES, traits=TRAITS)
 
 
 @app.get("/characters", response_class=HTMLResponse)
@@ -413,7 +417,8 @@ def edit_character_form(id: int, request: Request):
     else:
         player_field = ""
     return page(request, "edit.html", id=id, player_field=safe(player_field),
-                ranks=RANK_ORDER, **{f: character[f] for f in FIELDS})
+                ranks=RANK_ORDER, clans=CLANS, houses=HOUSES, traits=TRAITS,
+                **{f: character[f] for f in FIELDS})
 
 
 @app.post("/character/{id}/edit")

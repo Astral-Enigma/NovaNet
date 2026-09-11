@@ -1,4 +1,5 @@
 {% extends "_layout.html" %}
+{% from "_fields.html" import choice %}
 {% block heading %}New Character{% endblock %}
 {% block content %}
       <form method="post" action="/character">
@@ -9,9 +10,9 @@
           <option value="{{ r }}"{% if loop.first %} selected{% endif %}>{{ r }} ({{ thresholds[r] }} AP)</option>
 {% endfor %}
         </select></label>
-        <label>Clan: <input type="text" name="clan" required /></label>
-        <label>House: <input type="text" name="house" required /></label>
-        <label>Trait: <input type="text" name="trait" required /></label>
+        {{ choice("clan", "Clan", clans) }}
+        {{ choice("house", "House", houses) }}
+        {{ choice("trait", "Trait", traits) }}
         <label>Trauma Limit: <input type="number" name="trauma_limit" value="15" min="0" required /></label>
         <label>Pneuma Limit: <input type="number" name="pneuma_limit" value="10" min="0" required /></label>
         <label>Deftness: <input type="number" name="deftness" min="0" required /></label>
